@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UniRide — Dr. Harisingh Gour Vishwavidyalaya Transit Tracker</title>
+  
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" 
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+  
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+  <!-- Custom Styles -->
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+  <!-- Top Navigation Header -->
+  <header class="app-header">
+    <div class="header-left">
+      <div class="logo-wrapper">
+        <div class="logo-icon">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="18" height="15" rx="3" />
+            <line x1="3" y1="10" x2="21" y2="10" />
+            <circle cx="7" cy="14" r="1.5" />
+            <circle cx="17" cy="14" r="1.5" />
+            <path d="M5 18v2m14-2v2" stroke-linecap="round" />
+          </svg>
+        </div>
+        <div>
+          <h1 class="brand-title">UniRide <span class="brand-badge">DHSGSU Sagar</span></h1>
+          <p class="brand-sub">Real-Time GPS Bus Tracker & Schedule</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Live Telemetry Status & Stats -->
+    <div class="header-center">
+      <div class="status-indicator">
+        <span class="live-dot" id="liveDot"></span>
+        <span class="status-text" id="liveStatusText">LIVE FEED (3s)</span>
+      </div>
+      <div class="header-stats">
+        <div class="stat-item">
+          <span class="stat-val" id="statActiveBuses">4</span>
+          <span class="stat-label">Buses Active</span>
+        </div>
+        <div class="stat-divider"></div>
+        <div class="stat-item">
+          <span class="stat-val" id="statRoutes">3</span>
+          <span class="stat-label">Campus Routes</span>
+        </div>
+        <div class="stat-divider"></div>
+        <div class="stat-item" id="statAlertsWrapper">
+          <span class="stat-val text-warning" id="statAlerts">1</span>
+          <span class="stat-label">Active Delays</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Demo Presentation & Action Controls -->
+    <div class="header-right">
+      <button class="btn btn-outline" id="btnToggleSim" title="Pause or Resume background bus movement">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2">
+          <polygon points="5 3 19 12 5 21 5 3"></polygon>
+        </svg>
+        <span id="btnSimText">Pause Sim</span>
+      </button>
+      <button class="btn btn-primary" id="btnOpenDemoModal">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2">
+          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+        </svg>
+        <span>Demo Controls</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Notifications Banner for Delays -->
+  <section class="notifications-container" id="notificationsContainer">
+    <!-- Injected dynamically via JavaScript -->
+  </section>
+
+  <!-- Main Application Workspace -->
+  <main class="main-layout">
+    <!-- Sidebar / Drawer -->
+    <aside class="sidebar">
+      
+      <!-- Tab Navigation -->
+      <div class="tab-nav">
+        <button class="tab-btn active" data-tab="fleet">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="18" height="15" rx="3" />
+            <circle cx="7" cy="14" r="1.5" />
+            <circle cx="17" cy="14" r="1.5" />
+          </svg>
+          Live Fleet
+        </button>
+        <button class="tab-btn" data-tab="schedules">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10" />
+            <polyline points="12 6 12 12 16 14" />
+          </svg>
+          Schedules
+        </button>
+        <button class="tab-btn" data-tab="presentation">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="5 3 19 12 5 21 5 3"></polygon>
+          </svg>
+          Demo Guide
+        </button>
+      </div>
+
+      <!-- Tab Content 1: Live Fleet -->
+      <div class="tab-pane active" id="pane-fleet">
+        <!-- Route Filters -->
+        <div class="filter-bar">
+          <span class="filter-label">Filter:</span>
+          <div class="filter-chips">
+            <button class="chip active" data-filter="all">All</button>
+            <button class="chip" data-filter="CAMP-10" style="--chip-color: #2563EB;">Campus Central Express</button>
+            <button class="chip" data-filter="SCI-20" style="--chip-color: #059669;">Science & Health</button>
+            <button class="chip" data-filter="HOST-30" style="--chip-color: #7C3AED;">Hostels & Sports</button>
+          </div>
+        </div>
+
+        <!-- Bus Fleet Cards List -->
+        <div class="bus-list" id="busList">
+          <div class="loading-state">
+            <div class="spinner"></div>
+            <span>Connecting to DHSGSU bus telemetry...</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab Content 2: Schedules -->
+      <div class="tab-pane" id="pane-schedules">
+        <div class="schedule-filter-bar">
+          <label for="scheduleRouteSelect" class="form-label">Select Route:</label>
+          <select id="scheduleRouteSelect" class="custom-select">
+            <option value="">All DHSGSU Campus Routes</option>
+          </select>
+        </div>
+        <div class="schedules-table-container">
+          <table class="schedule-table">
+            <thead>
+              <tr>
+                <th>Bus / Route</th>
+                <th>Stop</th>
+                <th>Scheduled</th>
+                <th>Est. Arrival</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="schedulesTableBody">
+              <!-- Loaded dynamically -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Tab Content 3: 5-10 Min Presentation Demo Guide -->
+      <div class="tab-pane" id="pane-presentation">
+        <div class="demo-guide-card">
+          <div class="guide-header">
+            <h3>5-10 Minute Presentation Script</h3>
+            <span class="badge badge-info">DHSGSU Sagar</span>
+          </div>
+          <p class="guide-intro">
+            Interactive guide to demo the Dr. Harisingh Gour Vishwavidyalaya transit tracker.
+          </p>
+
+          <ol class="guide-steps">
+            <li>
+              <strong>1. System Overview (1 min):</strong>
+              <p>Flask REST API + SQLite spatial waypoints for DHSGSU Sagar campus on Patharia Hills + Leaflet.js real-time frontend.</p>
+            </li>
+            <li>
+              <strong>2. Real-Time Tracking & Telemetry (2 mins):</strong>
+              <p>Show buses traveling along University Road, Central Library, Science Complex, and Hostels. Click any bus to inspect speed, driver, and passenger load.</p>
+            </li>
+            <li>
+              <strong>3. Delay Simulation & Notification Banner (3 mins):</strong>
+              <p>Simulate a delay on Bus 101 to demonstrate the immediate delay banner, map beacon, and timetable adjustment:</p>
+              <div class="action-row">
+                <button class="btn btn-warning btn-sm" onclick="App.triggerDelay(1, 15, 'Traffic congestion near Main Gate on Patharia Hills')">
+                  Simulate Delay (Bus 101)
+                </button>
+                <button class="btn btn-success btn-sm" onclick="App.triggerDelay(1, 0, '')">
+                  Resolve Delay
+                </button>
+              </div>
+            </li>
+            <li>
+              <strong>4. Live REST API Location Updates (2 mins):</strong>
+              <p>Step simulation forward to show asynchronous GPS telemetry updates:</p>
+              <button class="btn btn-outline btn-sm" onclick="App.stepSimulation()">
+                Step GPS Ping (1 tick)
+              </button>
+            </li>
+          </ol>
+        </div>
+      </div>
+
+      <!-- Sidebar Footer -->
+      <div class="sidebar-footer">
+        <div class="legend">
+          <div class="legend-item"><span class="legend-dot" style="background:#2563EB;"></span> Campus Central Express</div>
+          <div class="legend-item"><span class="legend-dot" style="background:#059669;"></span> Science & Health</div>
+          <div class="legend-item"><span class="legend-dot" style="background:#7C3AED;"></span> Hostels & Sports</div>
+        </div>
+        <div class="system-footer-text">Dr. Harisingh Gour Vishwavidyalaya Campus Transit System</div>
+      </div>
+    </aside>
+
+    <!-- Map Canvas Container -->
+    <section class="map-section">
+      <div id="map"></div>
+
+      <!-- Floating Map Overlays -->
+      <div class="map-floating-controls">
+        <button class="map-ctrl-btn" id="btnRecenter" title="Center map on DHSGSU campus">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10" />
+            <circle cx="12" cy="12" r="3" />
+            <line x1="12" y1="2" x2="12" y2="5" />
+            <line x1="12" y1="19" x2="12" y2="22" />
+            <line x1="2" y1="12" x2="5" y2="12" />
+            <line x1="19" y1="12" x2="22" y2="12" />
+          </svg>
+        </button>
+        <button class="map-ctrl-btn" id="btnToggleStops" title="Toggle Bus Stops visibility">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 21s-8-7.5-8-12a8 8 0 1 1 16 0c0 4.5-8 12-8 12z" />
+            <circle cx="12" cy="9" r="3" />
+          </svg>
+        </button>
+      </div>
+
+      <!-- Bottom Mini Telemetry Bar -->
+      <div class="map-bottom-bar">
+        <span>📍 Dr. Harisingh Gour Vishwavidyalaya Campus Transit System</span>
+        <span class="divider">•</span>
+        <span id="bottomLastUpdated">Updated just now</span>
+        <span class="divider">•</span>
+        <span>Polling Interval: 3000ms</span>
+      </div>
+    </section>
+  </main>
+
+  <!-- Interactive Demo Controls Modal -->
+  <div class="modal-backdrop" id="demoModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <div class="modal-icon">⚡</div>
+          <div>
+            <h3>DHSGSU Sagar Demo Controller</h3>
+            <p>Control live simulation, trigger delay alerts, and test REST endpoints</p>
+          </div>
+        </div>
+        <button class="modal-close" id="btnCloseDemoModal">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="demo-section">
+          <h4>1. Delay & Notification Simulation</h4>
+          <p class="section-desc">Instantly toggle delays to showcase the dynamic notification banner and schedule synchronization:</p>
+          <div class="demo-grid">
+            <button class="btn btn-warning" onclick="App.triggerDelay(1, 15, 'Traffic congestion near University Main Gate on Patharia Hills')">
+              ⚠️ Delay Bus 101 (+15 min)
+            </button>
+            <button class="btn btn-danger" onclick="App.triggerDelay(3, 20, 'Maintenance check near Science & USIC Lab')">
+              🚨 Delay Bus 201 (+20 min)
+            </button>
+            <button class="btn btn-success" onclick="App.triggerDelay(1, 0, ''); App.triggerDelay(3, 0, '');">
+              ✅ Clear All Delays
+            </button>
+          </div>
+        </div>
+
+        <div class="demo-section">
+          <h4>2. Manual GPS Telemetry Push</h4>
+          <p class="section-desc">Demonstrates the <code>POST /api/buses/:id/location</code> backend endpoint:</p>
+          <div class="demo-grid">
+            <button class="btn btn-outline" onclick="App.stepSimulation()">
+              Forward GPS Step (All Buses)
+            </button>
+            <button class="btn btn-outline" onclick="App.postManualCoordinates()">
+              Push Custom GPS Coordinates
+            </button>
+          </div>
+        </div>
+
+        <div class="demo-section">
+          <h4>3. Simulation Engine & State</h4>
+          <div class="demo-grid">
+            <button class="btn btn-outline" id="modalToggleSimBtn" onclick="App.toggleSimulation()">
+              Pause / Resume Engine
+            </button>
+            <button class="btn btn-secondary" onclick="App.resetDemoState()">
+              🔄 Reset Everything to Default
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <span class="text-muted">Tip: Keep the notification banner visible during your demo to show real-time synchronization.</span>
+        <button class="btn btn-primary" id="btnDoneDemoModal">Close Controls</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" 
+          integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  
+  <!-- Main Application Script -->
+  <script src="/static/js/app.js"></script>
+</body>
+</html>
