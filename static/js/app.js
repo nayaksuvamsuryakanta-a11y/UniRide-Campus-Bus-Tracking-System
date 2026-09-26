@@ -22,6 +22,7 @@ const App = (() => {
     busEventSource: null,
     sseConnectionTimer: null,
     pollInterval: 3000,    // 3 seconds
+    mobileSheetExpanded: false,
   };
 
   // SVGs for clean UI icons
@@ -45,6 +46,12 @@ const App = (() => {
    * Initialize Map and Event Listeners
    */
   async function init() {
+    document.body.dataset.activeTab = 'fleet';
+    document.body.dataset.mobileSheetState = 'collapsed';
+    document.querySelector('.sidebar')?.classList.add('is-collapsed');
+    document.querySelectorAll('.demo-section').forEach(section => {
+      section.open = !window.matchMedia('(max-width: 768px)').matches;
+    });
     try {
       if (typeof L === 'undefined') throw new Error('Leaflet did not load');
       initMap();
@@ -111,25 +118,28 @@ const App = (() => {
    */
   function bindEvents() {
     // Tab Switching
-    document.querySelectorAll('.tab-btn').forEach(btn => {
+    document.querySelectorAll('.tab-btn, .bottom-nav-btn').forEach(btn => {
       btn.addEventListener('click', () => {
-        const targetTab = btn.getAttribute('data-tab');
-        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-        document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
-        btn.classList.add('active');
-        const targetPane = document.getElementById(`pane-${targetTab}`);
-        if (targetPane) targetPane.classList.add('active');
-        if (targetTab === 'schedules') fetchSchedules();
+        activateTab(btn.getAttribute('data-tab'));
       });
     });
 
     // Filter Chips for Routes
     document.querySelectorAll('.chip').forEach(chip => {
       chip.addEventListener('click', () => {
-        document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
-        chip.classList.add('active');
         state.selectedRouteFilter = chip.getAttribute('data-filter');
+        document.querySelectorAll('.chip').forEach(c => {
+          c.classList.toggle('active', c.getAttribute('data-filter') === state.selectedRouteFilter);
+        });
         applyRouteFilter();
+      });
+    });
+
+    // Keep the existing desktop demo panel fully expanded; accordion behavior
+    // is reserved for the mobile bottom sheet.
+    document.querySelectorAll('.demo-section > summary').forEach(summary => {
+      summary.addEventListener('click', event => {
+        if (window.innerWidth > 768) event.preventDefault();
       });
     });
 
@@ -149,13 +159,53 @@ const App = (() => {
 
     // Modal Controls
     const btnOpenDemo = document.getElementById('btnOpenDemoModal');
+    const btnOpenDemoFab = document.getElementById('btnOpenDemoFab');
     const modal = document.getElementById('demoModal');
     const btnCloseDemo = document.getElementById('btnCloseDemoModal');
     const btnDoneDemo = document.getElementById('btnDoneDemoModal');
 
-    if (btnOpenDemo) btnOpenDemo.addEventListener('click', () => modal.classList.add('show'));
-    if (btnCloseDemo) btnCloseDemo.addEventListener('click', () => modal.classList.remove('show'));
-    if (btnDoneDemo) btnDoneDemo.addEventListener('click', () => modal.classList.remove('show'));
+    if (btnOpenDemo) btnOpenDemo.addEventListener('click', openDemoControls);
+    if (btnOpenDemoFab) btnOpenDemoFab.addEventListener('click', openDemoControls);
+    if (btnCloseDemo) btnCloseDemo.addEventListener('click', closeDemoControls);
+    if (btnDoneDemo) btnDoneDemo.addEventListener('click', closeDemoControls);
+    if (modal) {
+      modal.addEventListener('click', event => {
+        if (event.target === modal) closeDemoControls();
+      });
+      const modalHeader = modal.querySelector('.modal-header');
+      let touchStartY = null;
+      modalHeader?.addEventListener('pointerdown', event => { touchStartY = event.clientY; });
+      modalHeader?.addEventListener('pointerup', event => {
+        if (touchStartY !== null && event.clientY - touchStartY > 70) closeDemoControls();
+        touchStartY = null;
+      });
+      modalHeader?.addEventListener('pointercancel', () => { touchStartY = null; });
+    }
+
+    const sheetToggle = document.getElementById('sheetToggle');
+    let sheetStartY = null;
+    let suppressSheetClick = false;
+    sheetToggle?.addEventListener('pointerdown', event => {
+      sheetStartY = event.clientY;
+      suppressSheetClick = false;
+    });
+    sheetToggle?.addEventListener('pointerup', event => {
+      if (sheetStartY === null) return;
+      const delta = event.clientY - sheetStartY;
+      if (Math.abs(delta) > 28) {
+        setMobileSheetExpanded(delta < 0);
+        suppressSheetClick = true;
+      }
+      sheetStartY = null;
+    });
+    sheetToggle?.addEventListener('pointercancel', () => { sheetStartY = null; });
+    sheetToggle?.addEventListener('click', () => {
+      if (suppressSheetClick) {
+        suppressSheetClick = false;
+        return;
+      }
+      setMobileSheetExpanded(!state.mobileSheetExpanded);
+    });
 
     // Floating Map Controls
     const btnRecenter = document.getElementById('btnRecenter');
@@ -177,6 +227,68 @@ const App = (() => {
         btnToggleStops.style.color = state.showStops ? 'var(--primary)' : 'var(--text-light)';
       });
     }
+  }
+
+  function activateTab(targetTab) {
+    if (!targetTab) return;
+    document.body.dataset.activeTab = targetTab;
+    document.querySelectorAll('.tab-btn, .bottom-nav-btn').forEach(btn => {
+      const isActive = btn.getAttribute('data-tab') === targetTab;
+      btn.classList.toggle('active', isActive);
+      if (btn.classList.contains('bottom-nav-btn')) {
+        if (isActive) btn.setAttribute('aria-current', 'page');
+        else btn.removeAttribute('aria-current');
+      }
+    });
+    document.querySelectorAll('.tab-pane').forEach(pane => {
+      pane.classList.toggle('active', pane.id === `pane-${targetTab}`);
+    });
+
+    const label = document.getElementById('sheetToggleLabel');
+    if (label) label.textContent = targetTab === 'schedules'
+      ? 'Schedules'
+      : targetTab === 'presentation' ? 'Demo guide' : 'Live fleet';
+
+    if (targetTab === 'schedules') fetchSchedules();
+    if (window.matchMedia('(max-width: 768px)').matches && targetTab !== 'presentation') {
+      setMobileSheetExpanded(true);
+    } else if (window.matchMedia('(max-width: 768px)').matches) {
+      setMobileSheetExpanded(false);
+    }
+  }
+
+  function setMobileSheetExpanded(expanded) {
+    if (!window.matchMedia('(max-width: 768px)').matches) return;
+    state.mobileSheetExpanded = Boolean(expanded);
+    document.body.dataset.mobileSheetState = state.mobileSheetExpanded ? 'expanded' : 'collapsed';
+    const sidebar = document.querySelector('.sidebar');
+    const toggle = document.getElementById('sheetToggle');
+    if (sidebar) {
+      sidebar.classList.toggle('is-expanded', state.mobileSheetExpanded);
+      sidebar.classList.toggle('is-collapsed', !state.mobileSheetExpanded);
+    }
+    if (toggle) {
+      toggle.setAttribute('aria-expanded', String(state.mobileSheetExpanded));
+      toggle.setAttribute('aria-label', state.mobileSheetExpanded
+        ? 'Collapse bus and schedule sheet'
+        : 'Expand bus and schedule sheet');
+    }
+    if (state.map) {
+      window.setTimeout(() => state.map.invalidateSize({ pan: false }), 240);
+    }
+  }
+
+  function openDemoControls() {
+    const modal = document.getElementById('demoModal');
+    if (!modal) return;
+    modal.classList.add('show');
+    document.body.classList.add('demo-controls-open');
+  }
+
+  function closeDemoControls() {
+    const modal = document.getElementById('demoModal');
+    if (modal) modal.classList.remove('show');
+    document.body.classList.remove('demo-controls-open');
   }
 
   /**
@@ -409,6 +521,7 @@ const App = (() => {
 
     if (state.buses.length === 0) {
       container.innerHTML = `<div class="loading-state"><span>No active buses in service.</span></div>`;
+      updateMobilePeekCard();
       return;
     }
 
@@ -490,6 +603,16 @@ const App = (() => {
         </div>
       `;
     }).join('');
+    updateMobilePeekCard();
+  }
+
+  function updateMobilePeekCard() {
+    if (!window.matchMedia('(max-width: 768px)').matches) return;
+    const cards = Array.from(document.querySelectorAll('.bus-card'));
+    const visibleCards = cards.filter(card => card.style.display !== 'none');
+    const selectedCard = visibleCards.find(card => Number(card.dataset.busId) === state.selectedBusId);
+    const peekCard = selectedCard || visibleCards[0];
+    cards.forEach(card => card.classList.toggle('mobile-peek-card', card === peekCard));
   }
 
   /**
@@ -531,6 +654,7 @@ const App = (() => {
         if (state.map.hasLayer(glow)) state.map.removeLayer(glow);
       }
     });
+    updateMobilePeekCard();
   }
 
   /**
@@ -633,22 +757,25 @@ const App = (() => {
    */
   function renderSchedules() {
     const tbody = document.getElementById('schedulesTableBody');
-    if (!tbody) return;
+    const cardContainer = document.getElementById('scheduleCards');
+    if (!tbody && !cardContainer) return;
 
     if (state.schedules.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding: 20px;">No schedule records found.</td></tr>`;
+      if (tbody) tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding: 20px;">No schedule records found.</td></tr>`;
+      if (cardContainer) cardContainer.innerHTML = '<div class="schedule-empty-state">No schedule records found.</div>';
       return;
     }
 
-    tbody.innerHTML = state.schedules.map(item => {
-      const isDelayed = item.status.includes('Delayed');
-      const isDeparted = item.status.includes('Departed');
+    const schedules = state.schedules.map(item => {
+      const status = String(item.status || 'Unknown');
+      const isDelayed = status.toLowerCase().includes('delay');
+      const isDeparted = status.toLowerCase().includes('departed');
       
       let badgeClass = 'on-time';
       if (isDelayed) badgeClass = 'delayed';
       else if (isDeparted) badgeClass = '';
 
-      return `
+      const row = `
         <tr>
           <td>
             <div style="display:flex; flex-direction:column;">
@@ -661,12 +788,31 @@ const App = (() => {
           <td><span style="font-family:var(--font-mono); font-size:0.75rem; font-weight:600;">${item.estimated_time}</span></td>
           <td>
             <span class="status-badge ${badgeClass}" style="display:inline-flex;">
-              ${item.status}
+              ${status}
             </span>
           </td>
         </tr>
       `;
-    }).join('');
+      let cardStatusClass = isDelayed ? 'is-delayed' : '';
+      if (isDelayed && /critical|severe|danger/i.test(status)) cardStatusClass = 'is-danger';
+      const card = `
+        <article class="schedule-card" style="--schedule-route-color: ${item.route_color || '#2563eb'}">
+          <h3 class="schedule-card-title">
+            ${item.bus_number || 'Campus bus'}
+            <span class="schedule-card-subtitle">${item.route_name || 'Campus route'}</span>
+          </h3>
+          <div class="schedule-card-grid">
+            <div class="schedule-card-field"><span class="schedule-card-label">Stop</span><span class="schedule-card-value">${item.stop_name}</span></div>
+            <div class="schedule-card-field"><span class="schedule-card-label">Scheduled</span><span class="schedule-card-value">${item.scheduled_time}</span></div>
+            <div class="schedule-card-field"><span class="schedule-card-label">ETA</span><span class="schedule-card-value">${item.estimated_time}</span></div>
+            <div class="schedule-card-field"><span class="schedule-card-label">Status</span><span class="schedule-status-pill ${cardStatusClass}">${status}</span></div>
+          </div>
+        </article>
+      `;
+      return { row, card };
+    });
+    if (tbody) tbody.innerHTML = schedules.map(item => item.row).join('');
+    if (cardContainer) cardContainer.innerHTML = schedules.map(item => item.card).join('');
   }
 
   /**
@@ -682,6 +828,20 @@ const App = (() => {
     if (statRoutes) statRoutes.textContent = state.routes.length;
     if (statAlerts) statAlerts.textContent = state.notifications.length;
 
+    const mobileStatBuses = document.getElementById('mobileStatActiveBuses');
+    const mobileStatRoutes = document.getElementById('mobileStatRoutes');
+    const mobileStatAlerts = document.getElementById('mobileStatAlerts');
+    const mobileStatAlertsChip = document.getElementById('mobileStatAlertsChip');
+    if (mobileStatBuses) mobileStatBuses.textContent = state.buses.length;
+    if (mobileStatRoutes) mobileStatRoutes.textContent = state.routes.length;
+    if (mobileStatAlerts) mobileStatAlerts.textContent = state.notifications.length;
+    if (mobileStatAlertsChip) {
+      const hasAlerts = state.notifications.length > 0;
+      mobileStatAlertsChip.classList.toggle('is-alert', hasAlerts);
+      mobileStatAlertsChip.classList.toggle('is-clear', !hasAlerts);
+      mobileStatAlertsChip.setAttribute('aria-label', `${state.notifications.length} active delays`);
+    }
+
     if (bottomLastUpdated) {
       const now = new Date();
       bottomLastUpdated.textContent = `Live Telemetry • ${now.toLocaleTimeString()}`;
@@ -695,6 +855,11 @@ const App = (() => {
     state.selectedBusId = busId;
     const bus = state.buses.find(b => b.id === busId);
     if (!bus) return;
+
+    if (window.matchMedia('(max-width: 768px)').matches) {
+      if (document.body.dataset.activeTab !== 'fleet') activateTab('fleet');
+      setMobileSheetExpanded(true);
+    }
 
     if (fly && state.map) {
       state.map.flyTo([bus.current_lat, bus.current_lng], 16, { duration: 0.8 });
@@ -715,6 +880,15 @@ const App = (() => {
         card.classList.remove('active-selected');
       }
     });
+    updateMobilePeekCard();
+    if (window.matchMedia('(max-width: 768px)').matches) {
+      window.setTimeout(() => {
+        document.querySelector(`.bus-card[data-bus-id="${busId}"]`)?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'nearest',
+        });
+      }, 240);
+    }
   }
 
   function focusOnBus(busId) {
@@ -902,16 +1076,24 @@ const App = (() => {
       const liveDot = document.getElementById('liveDot');
       const liveStatusText = document.getElementById('liveStatusText');
       const btnSimText = document.getElementById('btnSimText');
+      const modalToggleSimBtn = document.getElementById('modalToggleSimBtn');
+      const simIcon = document.getElementById('simIcon');
+      const simLabel = state.simRunning ? 'Pause simulation' : 'Resume simulation';
 
       if (state.simRunning) {
         if (liveDot) liveDot.classList.remove('paused');
         if (liveStatusText) liveStatusText.textContent = 'LIVE FEED (3s)';
         if (btnSimText) btnSimText.textContent = 'Pause Sim';
+        if (modalToggleSimBtn) modalToggleSimBtn.textContent = 'Pause Engine';
+        if (simIcon) simIcon.innerHTML = '<path d="M8 5v14M16 5v14" stroke-linecap="round"></path>';
       } else {
         if (liveDot) liveDot.classList.add('paused');
         if (liveStatusText) liveStatusText.textContent = 'SIM PAUSED';
         if (btnSimText) btnSimText.textContent = 'Resume Sim';
+        if (modalToggleSimBtn) modalToggleSimBtn.textContent = 'Resume Engine';
+        if (simIcon) simIcon.innerHTML = '<polygon points="5 3 19 12 5 21 5 3"></polygon>';
       }
+      document.getElementById('btnToggleSim')?.setAttribute('aria-label', simLabel);
     } catch (err) {
       console.error('Error toggling simulation:', err);
     }

@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>UniRide — Dr. Harisingh Gour Vishwavidyalaya Transit Tracker</title>
   
   <!-- Leaflet CSS -->
@@ -65,9 +65,9 @@
 
     <!-- Demo Presentation & Action Controls -->
     <div class="header-right">
-      <button class="btn btn-outline" id="btnToggleSim" title="Pause or Resume background bus movement">
-        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2">
-          <polygon points="5 3 19 12 5 21 5 3"></polygon>
+      <button class="btn btn-outline" id="btnToggleSim" title="Pause or Resume background bus movement" aria-label="Pause simulation">
+        <svg id="simIcon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M8 5v14M16 5v14" stroke-linecap="round"></path>
         </svg>
         <span id="btnSimText">Pause Sim</span>
       </button>
@@ -89,6 +89,11 @@
   <main class="main-layout">
     <!-- Sidebar / Drawer -->
     <aside class="sidebar">
+      <button class="sheet-toggle" id="sheetToggle" type="button" aria-expanded="false" aria-label="Expand bus and schedule sheet">
+        <span class="sheet-handle-pill" aria-hidden="true"></span>
+        <span class="sheet-toggle-label" id="sheetToggleLabel">Live fleet</span>
+        <svg class="sheet-chevron" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
       
       <!-- Tab Navigation -->
       <div class="tab-nav">
@@ -161,6 +166,7 @@
             </tbody>
           </table>
         </div>
+        <div class="schedule-cards" id="scheduleCards" aria-live="polite"></div>
       </div>
 
       <!-- Tab Content 3: 5-10 Min Presentation Demo Guide -->
@@ -221,6 +227,23 @@
     <section class="map-section">
       <div id="map"></div>
 
+      <div class="mobile-map-overlays" aria-label="Map filters and service summary">
+        <div class="mobile-stat-strip" aria-label="Service summary">
+          <div class="mobile-stat-chip"><span class="mobile-stat-value" id="mobileStatActiveBuses">4</span><span>buses</span></div>
+          <div class="mobile-stat-chip"><span class="mobile-stat-value" id="mobileStatRoutes">3</span><span>routes</span></div>
+          <div class="mobile-stat-chip mobile-alert-chip" id="mobileStatAlertsChip">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m10.3 3.9-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3.1l-8-14a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4m0 4h.01"/></svg>
+            <span class="mobile-stat-value" id="mobileStatAlerts">1</span><span>delays</span>
+          </div>
+        </div>
+        <div class="mobile-filter-bar" aria-label="Filter buses by route">
+          <button class="chip active" data-filter="all">All</button>
+          <button class="chip" data-filter="CAMP-10" style="--chip-color: #2563EB;">Campus Central Express</button>
+          <button class="chip" data-filter="SCI-20" style="--chip-color: #059669;">Science &amp; Health</button>
+          <button class="chip" data-filter="HOST-30" style="--chip-color: #7C3AED;">Hostels &amp; Sports</button>
+        </div>
+      </div>
+
       <!-- Floating Map Overlays -->
       <div class="map-floating-controls">
         <button class="map-ctrl-btn" id="btnRecenter" title="Center map on DHSGSU campus">
@@ -252,8 +275,25 @@
     </section>
   </main>
 
+  <nav class="mobile-bottom-nav" aria-label="Main navigation">
+    <button class="bottom-nav-btn active" type="button" data-tab="fleet" aria-current="page">
+      <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="15" rx="3"/><path d="M3 10h18m-14 5h.01M17 15h.01M7 19v2m10-2v2"/></svg><span>Fleet</span>
+    </button>
+    <button class="bottom-nav-btn" type="button" data-tab="schedules">
+      <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18m-13 4h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/></svg><span>Schedules</span>
+    </button>
+    <button class="bottom-nav-btn" type="button" data-tab="presentation">
+      <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 4h16v12H4zM8 20h8m-4-4v4"/><path d="m10 8 5 2-5 2z"/></svg><span>Demo Guide</span>
+    </button>
+  </nav>
+
+  <button class="demo-fab" id="btnOpenDemoFab" type="button" aria-label="Open demo controls" aria-controls="demoModal">
+    <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M13 2 3 14h8l-1 8 11-13h-8z"/></svg>
+    <span>Demo</span>
+  </button>
+
   <!-- Interactive Demo Controls Modal -->
-  <div class="modal-backdrop" id="demoModal">
+  <div class="modal-backdrop" id="demoModal" role="dialog" aria-modal="true" aria-label="Demo controls">
     <div class="modal-card">
       <div class="modal-header">
         <div class="modal-title-group">
@@ -267,8 +307,8 @@
       </div>
 
       <div class="modal-body">
-        <div class="demo-section">
-          <h4>1. Delay & Notification Simulation</h4>
+        <details class="demo-section" open>
+          <summary><h4>1. Delay &amp; Notification Simulation</h4></summary>
           <p class="section-desc">Instantly toggle delays to showcase the dynamic notification banner and schedule synchronization:</p>
           <div class="demo-grid">
             <button class="btn btn-warning" onclick="App.triggerDelay(1, 15, 'Traffic congestion near University Main Gate on Patharia Hills')">
@@ -281,10 +321,10 @@
               ✅ Clear All Delays
             </button>
           </div>
-        </div>
+        </details>
 
-        <div class="demo-section">
-          <h4>2. Manual GPS Telemetry Push</h4>
+        <details class="demo-section" open>
+          <summary><h4>2. Manual GPS Telemetry Push</h4></summary>
           <p class="section-desc">Demonstrates the <code>POST /api/buses/:id/location</code> backend endpoint:</p>
           <div class="demo-grid">
             <button class="btn btn-outline" onclick="App.stepSimulation()">
@@ -294,10 +334,10 @@
               Push Custom GPS Coordinates
             </button>
           </div>
-        </div>
+        </details>
 
-        <div class="demo-section">
-          <h4>3. Simulation Engine & State</h4>
+        <details class="demo-section" open>
+          <summary><h4>3. Simulation Engine &amp; State</h4></summary>
           <div class="demo-grid">
             <button class="btn btn-outline" id="modalToggleSimBtn" onclick="App.toggleSimulation()">
               Pause / Resume Engine
@@ -306,7 +346,7 @@
               🔄 Reset Everything to Default
             </button>
           </div>
-        </div>
+        </details>
       </div>
 
       <div class="modal-footer">

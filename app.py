@@ -10,6 +10,7 @@ from flask_limiter.util import get_remote_address
 from werkzeug.exceptions import HTTPException
 from database import get_db, init_db
 import simulation
+
 from logging_config import configure_logging
 
 configure_logging()
