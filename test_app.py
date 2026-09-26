@@ -1,5 +1,7 @@
 import unittest
 import json
+import os
+from unittest.mock import patch
 from app import app
 from database import get_db, init_db
 import simulation
@@ -90,11 +92,16 @@ class CampusBusTestCase(unittest.TestCase):
             initial = next(response.response).decode('utf-8')
             self.assertIn('event: buses', initial)
             self.assertIn('"buses"', initial)
+            initial_notifications = next(response.response).decode('utf-8')
+            self.assertIn('event: notifications', initial_notifications)
+            self.assertIn('"notifications"', initial_notifications)
 
             simulation.notify_bus_update()
             update = next(response.response).decode('utf-8')
             self.assertIn('event: buses', update)
             self.assertIn('"timestamp"', update)
+            notification_update = next(response.response).decode('utf-8')
+            self.assertIn('event: notifications', notification_update)
         finally:
             response.close()
 
@@ -167,10 +174,15 @@ class CampusBusTestCase(unittest.TestCase):
 
     def test_demo_toggle_delay(self):
         """Test toggling delay on bus and verify status change."""
+        with patch.dict(os.environ, {'ADMIN_TOKEN': 'test-admin-token'}):
+            self._test_demo_toggle_delay_with_token()
+
+    def _test_demo_toggle_delay_with_token(self):
         # Trigger delay
         res = self.client.post('/api/demo/toggle-delay/2',
                                data=json.dumps({'minutes': 18, 'reason': 'Obstruction'}),
-                               content_type='application/json')
+                               content_type='application/json',
+                               headers={'X-Admin-Token': 'test-admin-token'})
         self.assertEqual(res.status_code, 200)
 
         # Check bus is delayed
@@ -181,13 +193,22 @@ class CampusBusTestCase(unittest.TestCase):
         self.assertIn('Delayed', bus2['status'])
 
         # Clear delay
-        res_clear = self.client.post('/api/demo/toggle-delay/2')
+        res_clear = self.client.post(
+            '/api/demo/toggle-delay/2',
+            headers={'X-Admin-Token': 'test-admin-token'},
+        )
         self.assertEqual(res_clear.status_code, 200)
         res_bus2 = self.client.get('/api/buses')
         buses2 = json.loads(res_bus2.data)['buses']
         bus2_cleared = next(b for b in buses2 if b['id'] == 2)
         self.assertEqual(bus2_cleared['delay_minutes'], 0)
         self.assertEqual(bus2_cleared['status'], 'On Time')
+
+    def test_demo_toggle_delay_requires_admin_token(self):
+        with patch.dict(os.environ, {'ADMIN_TOKEN': 'test-admin-token'}):
+            response = self.client.post('/api/demo/toggle-delay/2')
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(response.get_json()['status'], 'error')
 
 if __name__ == '__main__':
     unittest.main()

@@ -34,6 +34,12 @@ const App = (() => {
     check: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>`,
   };
 
+  function formatDriverName(fullName) {
+    const parts = String(fullName || '').trim().split(/\s+/).filter(Boolean);
+    if (parts.length < 2) return parts[0] || 'Unknown';
+    return `${parts[0]} ${parts[parts.length - 1][0]}.`;
+  }
+
   /**
    * Initialize Map and Event Listeners
    */
@@ -334,7 +340,7 @@ const App = (() => {
         </div>
         <div class="popup-row">
           <span class="popup-label">Driver:</span>
-          <span class="popup-val">${bus.driver_name}</span>
+          <span class="popup-val">${formatDriverName(bus.driver_name)}</span>
         </div>
         <div class="popup-row">
           <span class="popup-label">Speed:</span>
@@ -425,7 +431,7 @@ const App = (() => {
             <div class="detail-item">
               <span class="detail-label">Driver</span>
               <span class="detail-value">
-                ${bus.driver_name}
+                ${formatDriverName(bus.driver_name)}
               </span>
             </div>
           </div>
@@ -702,11 +708,16 @@ const App = (() => {
       }
     });
 
-    // Notifications are not part of the bus position stream.
-    if (state.pollingTimer) clearInterval(state.pollingTimer);
-    state.pollingTimer = setInterval(async () => {
-      await fetchNotifications();
-    }, state.pollInterval);
+    state.busEventSource.addEventListener('notifications', event => {
+      try {
+        const data = JSON.parse(event.data);
+        state.notifications = data.notifications || [];
+        renderNotifications();
+        updateTelemetryHeader();
+      } catch (err) {
+        console.error('Error parsing live notification update:', err);
+      }
+    });
   }
 
   /** Poll bus snapshots and notifications when EventSource is unavailable. */
@@ -733,15 +744,38 @@ const App = (() => {
   /**
    * Demo Action: Toggle Delay on Bus
    */
+  function getAdminToken() {
+    let token = sessionStorage.getItem('unirideAdminToken');
+    if (!token) {
+      token = window.prompt('Enter the admin token to simulate or clear a delay:');
+      if (!token) return null;
+      sessionStorage.setItem('unirideAdminToken', token);
+    }
+    return token;
+  }
+
   async function triggerDelay(busId, minutes, reason) {
+    const adminToken = getAdminToken();
+    if (!adminToken) return;
     try {
       const res = await fetch(`/api/demo/toggle-delay/${busId}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Admin-Token': adminToken,
+        },
         body: JSON.stringify({ minutes, reason }),
       });
       const data = await res.json();
-      console.log('Toggle delay result:', data);
+      if (res.status === 401) {
+        sessionStorage.removeItem('unirideAdminToken');
+        alert(data.error || 'The admin token was not accepted. Please try again.');
+        return;
+      }
+      if (!res.ok) {
+        alert(data.error || 'Unable to change the bus delay.');
+        return;
+      }
 
       // Immediately refresh live data
       await fetchBuses();

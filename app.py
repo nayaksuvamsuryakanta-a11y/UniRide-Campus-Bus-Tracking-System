@@ -2,6 +2,7 @@ import os
 import json
 import math
 import logging
+import hmac
 from datetime import datetime
 from flask import Flask, Response, render_template, jsonify, request, stream_with_context
 from flask_limiter import Limiter
@@ -19,6 +20,7 @@ limiter = Limiter(
     app=app,
     default_limits=['60 per minute'],
     default_limits_exempt_when=lambda: not request.path.startswith('/api/'),
+    storage_uri=os.environ.get('CAMPUS_BUS_REDIS_URL') or 'memory://',
 )
 
 
@@ -68,14 +70,35 @@ def _get_bus_snapshot():
     }
 
 
+def _get_notification_snapshot():
+    """Read current active notifications for SSE and polling clients."""
+    conn = get_db()
+    try:
+        cursor = conn.cursor()
+        cursor.execute('''
+        SELECT n.*, b.bus_number, r.name as route_name, r.color as route_color
+        FROM notifications n
+        LEFT JOIN buses b ON n.bus_id = b.id
+        LEFT JOIN routes r ON n.route_id = r.id
+        WHERE n.is_active = 1
+        ORDER BY n.id DESC
+        ''')
+        notifications = [dict(row) for row in cursor.fetchall()]
+    finally:
+        conn.close()
+    return {'notifications': notifications}
+
+
 @app.route('/api/buses/stream', methods=['GET'])
 def stream_buses():
-    """Stream initial and changed bus snapshots using Server-Sent Events."""
+    """Stream bus and notification snapshots using Server-Sent Events."""
     def event_stream():
         version = simulation.get_update_version()
         try:
             initial = json.dumps(_get_bus_snapshot(), separators=(',', ':'))
             yield f'retry: 3000\nevent: buses\ndata: {initial}\n\n'
+            notifications = json.dumps(_get_notification_snapshot(), separators=(',', ':'))
+            yield f'event: notifications\ndata: {notifications}\n\n'
             while True:
                 next_version = simulation.wait_for_update(version, timeout=15.0)
                 if next_version == version:
@@ -84,6 +107,8 @@ def stream_buses():
                 version = next_version
                 payload = json.dumps(_get_bus_snapshot(), separators=(',', ':'))
                 yield f'event: buses\ndata: {payload}\n\n'
+                notifications = json.dumps(_get_notification_snapshot(), separators=(',', ':'))
+                yield f'event: notifications\ndata: {notifications}\n\n'
         except GeneratorExit:
             # No DB connection is held while waiting or yielding; closing the
             # generator releases the request context and exits the stream.
@@ -243,20 +268,8 @@ def handle_notifications():
     cursor = conn.cursor()
 
     if request.method == 'GET':
-        cursor.execute('''
-        SELECT n.*, b.bus_number, r.name as route_name, r.color as route_color
-        FROM notifications n
-        LEFT JOIN buses b ON n.bus_id = b.id
-        LEFT JOIN routes r ON n.route_id = r.id
-        WHERE n.is_active = 1
-        ORDER BY n.id DESC
-        ''')
-        notifications = [dict(row) for row in cursor.fetchall()]
         conn.close()
-        return jsonify({
-            'status': 'success',
-            'notifications': notifications
-        })
+        return jsonify({'status': 'success', **_get_notification_snapshot()})
 
     # POST: Create a notification
     title = data.get('title')
@@ -277,6 +290,7 @@ def handle_notifications():
     conn.commit()
     new_id = cursor.lastrowid
     conn.close()
+    simulation.notify_bus_update()
 
     return jsonify({
         'status': 'success',
@@ -295,6 +309,7 @@ def dismiss_notification(alert_id):
         return jsonify({'status': 'error', 'error': 'Notification not found'}), 404
     conn.commit()
     conn.close()
+    simulation.notify_bus_update()
     return jsonify({'status': 'success', 'message': f'Notification {alert_id} dismissed'})
 
 # Demo helper endpoints for the 5-10 minute presentation
@@ -307,6 +322,11 @@ def demo_step():
 @app.route('/api/demo/toggle-delay/<int:bus_id>', methods=['POST'])
 def demo_toggle_delay(bus_id):
     """Toggle delay status on a bus and emit notification."""
+    admin_token = os.environ.get('ADMIN_TOKEN')
+    if not admin_token:
+        return jsonify({'status': 'error', 'error': 'Admin actions are disabled because ADMIN_TOKEN is not configured'}), 503
+    if not hmac.compare_digest(request.headers.get('X-Admin-Token', ''), admin_token):
+        return jsonify({'status': 'error', 'error': 'A valid admin token is required'}), 401
     if request.data and not request.is_json:
         return jsonify({'status': 'error', 'error': 'Request body must be JSON'}), 400
     data = request.get_json(silent=False) if request.is_json else {}
