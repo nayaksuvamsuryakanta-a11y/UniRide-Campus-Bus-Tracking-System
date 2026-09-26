@@ -1,0 +1,7 @@
+.git
+.venv
+__pycache__
+*.py[cod]
+campus_bus.db
+campus_bus.db-shm
+campus_bus.db-wal
