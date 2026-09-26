@@ -192,7 +192,38 @@ def init_db(reset: bool = False) -> None:
     if cursor.fetchone()['cnt'] == 0:
         seed_data(conn)
 
+    _ensure_audience_stops(conn)
+    conn.commit()
+
     conn.close()
+
+
+def _ensure_audience_stops(conn: sqlite3.Connection) -> None:
+    """Add staff-facing stops to both new and already-seeded databases."""
+    additions = {
+        'CAMP-10': [('Guest House', 23.830000, 78.767000)],
+        'HOST-30': [('Staff Quarters', 23.822000, 78.768500)],
+    }
+    cursor = conn.cursor()
+    for route_code, stops in additions.items():
+        route = cursor.execute('SELECT id FROM routes WHERE code = ?', (route_code,)).fetchone()
+        if not route:
+            continue
+        route_id = route['id']
+        for name, lat, lng in stops:
+            exists = cursor.execute(
+                'SELECT 1 FROM stops WHERE route_id = ? AND name = ?', (route_id, name)
+            ).fetchone()
+            if exists:
+                continue
+            order = cursor.execute(
+                'SELECT COALESCE(MAX(stop_order), 0) + 1 FROM stops WHERE route_id = ?',
+                (route_id,),
+            ).fetchone()[0]
+            cursor.execute(
+                'INSERT INTO stops (route_id, name, stop_order, lat, lng) VALUES (?, ?, ?, ?, ?)',
+                (route_id, name, order, lat, lng),
+            )
 
 def seed_data(conn: sqlite3.Connection) -> None:
     """Insert the initial route, bus, stop, schedule, and alert records."""

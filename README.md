@@ -17,7 +17,7 @@ A full-stack campus transit tracking web application for **Dr. Harisingh Gour Vi
 
 2. **Live Location Updates (3s Headway)**:
    - Automated background simulation engine moves buses along road waypoints.
-   - Frontend asynchronously polls `/api/buses` every 3 seconds to smoothly interpolate bus markers.
+   - Frontend prefers server-pushed updates from `/api/buses/stream` using Server-Sent Events (SSE). It falls back to polling `/api/buses` and `/api/notifications` every 3 seconds if SSE is unavailable or fails.
    - Supports authenticated GPS telemetry push via `POST /api/buses/<id>/location` using the `X-Update-Token` header.
 
 3. **Delay Notifications Banner**:
@@ -59,7 +59,7 @@ FIRSTPROJECT/
     ├── css/
     │   └── style.css       # Modern UI styling, animations & notification banner
     └── js/
-        └── app.js          # Leaflet map setup, real-time polling & demo controller
+        └── app.js          # Leaflet map setup, SSE with polling fallback & demo controller
 ```
 
 ---
@@ -139,7 +139,11 @@ Set `GPS_UPDATE_TOKEN` in the environment where the Flask/Gunicorn process runs,
 - `POST /api/notifications/<id>/dismiss`: Dismisses an active alert.
 
 ### 5. Demo Controls
-- `POST /api/demo/step`: Manually advances all buses one step.
-- `POST /api/demo/toggle-delay/<bus_id>`: Toggles delay on a bus and generates an alert.
-- `POST /api/demo/toggle-simulation`: Pauses or resumes the background simulation loop.
-- `POST /api/demo/reset`: Resets SQLite database to the default seed state.
+- `POST /api/demo/step`: Manually advances all buses one step. Requires `X-Admin-Token` matching `ADMIN_TOKEN`.
+- `POST /api/demo/toggle-delay/<bus_id>`: Toggles delay on a bus and generates an alert. Requires `X-Admin-Token`.
+- `POST /api/demo/toggle-simulation`: Pauses or resumes the background simulation loop. Requires `X-Admin-Token`.
+- `POST /api/demo/buses/<bus_id>/location`: Submits demo GPS coordinates through the admin-protected path. Requires `X-Admin-Token`; the browser does not receive the server GPS update token.
+- `POST /api/demo/reset`: Resets SQLite database to the default seed state. Requires `X-Admin-Token`.
+- `GET /api/demo/simulation-status`: Returns only whether simulation is running; remains public and read-only.
+
+Set `ADMIN_TOKEN` in the environment where Flask/Gunicorn runs, and enter the same value when the dashboard prompts for it. If it is unset, admin-protected actions return `503`; missing or incorrect `X-Admin-Token` values return `401`.

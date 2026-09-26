@@ -78,6 +78,8 @@
         <span data-i18n="demoControls">Demo Controls</span>
       </button>
       <button class="language-toggle" id="languageToggle" type="button" aria-label="Switch language to Hindi" title="Switch language to Hindi"><span class="language-active">EN</span><span class="language-divider">/</span><span lang="hi">हिं</span></button>
+      <button class="header-audience" id="audienceToggle" type="button" aria-label="Change audience" data-i18n-aria-label="changeAudience" data-i18n-title="changeAudience" title="Change audience"><span aria-hidden="true">♙</span><span id="audienceLabel" data-i18n="chooseAudience">Choose audience</span></button>
+      <button class="header-text-toggle" id="fontSizeToggle" type="button" aria-pressed="false" aria-label="Larger Text" data-i18n-aria-label="largerText" data-i18n-title="largerText" title="Larger text"><span aria-hidden="true">A+</span><span data-i18n="largerText">Larger Text</span></button>
     </div>
   </header>
 
@@ -123,6 +125,7 @@
           </svg>
           <span data-i18n="demoGuide">Demo Guide</span>
         </button>
+        <button class="tab-btn" data-tab="about"><span data-i18n="aboutTitle">About / How to Use</span></button>
       </div>
 
       <!-- Tab Content 1: Live Fleet -->
@@ -215,6 +218,14 @@
             </li>
           </ol>
         </div>
+      </div>
+
+      <div class="tab-pane" id="pane-about">
+        <article class="about-card">
+          <h2 data-i18n="aboutTitle">About / How to Use</h2>
+          <p data-i18n="aboutTextOne">UniRide shows campus bus routes, stops, and live bus positions. Choose a route filter, then look for the nearest stop marker on the map; select a bus for its next stop and estimated arrival.</p>
+          <p data-i18n="aboutTextTwo">The service is useful to students, university staff and faculty, and visitors or local residents. Bus locations in this demo are simulated.</p>
+        </article>
       </div>
 
       <!-- Sidebar Footer -->
@@ -311,7 +322,22 @@
     <button class="bottom-nav-btn" type="button" data-tab="presentation">
       <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 4h16v12H4zM8 20h8m-4-4v4"/><path d="m10 8 5 2-5 2z"/></svg><span data-i18n="demoGuide">Demo Guide</span>
     </button>
+    <button class="bottom-nav-btn" type="button" data-tab="about"><span aria-hidden="true">ⓘ</span><span data-i18n="aboutShort">About</span></button>
   </nav>
+
+  <div class="audience-dialog-backdrop" id="audienceDialog" hidden>
+    <section class="audience-dialog" role="dialog" aria-modal="true" aria-labelledby="audienceDialogTitle">
+      <button class="audience-dialog-close" id="audienceDialogClose" type="button" aria-label="Close" data-i18n-aria-label="close">×</button>
+      <h2 id="audienceDialogTitle" data-i18n="audiencePrompt">I am a...</h2>
+      <p data-i18n="audienceDescription">Choose a view to highlight useful routes. All routes and features remain available.</p>
+      <div class="audience-options">
+        <button type="button" data-audience="student" data-i18n="student">Student</button>
+        <button type="button" data-audience="staff" data-i18n="professorStaff">Professor / Staff</button>
+        <button type="button" data-audience="visitor" data-i18n="visitorLocal">Visitor / Local Resident</button>
+      </div>
+      <button class="audience-dismiss" id="audienceDismiss" type="button" data-i18n="continueGeneral">Continue with general view</button>
+    </section>
+  </div>
 
   <button class="demo-fab" id="btnOpenDemoFab" type="button" aria-label="Open demo controls" data-i18n-aria-label="openDemoControls" aria-controls="demoModal">
     <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M13 2 3 14h8l-1 8 11-13h-8z"/></svg>

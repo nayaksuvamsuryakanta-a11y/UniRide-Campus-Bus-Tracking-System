@@ -15,6 +15,7 @@ const App = (() => {
     stopMarkers: [],      // array of L.marker
     routePolylines: {},   // route_code -> L.polyline
     selectedRouteFilter: 'all',
+    audienceRouteCodes: [],
     selectedBusId: null,
     showStops: true,
     simRunning: true,
@@ -24,6 +25,7 @@ const App = (() => {
     pollInterval: 3000,    // 3 seconds
     mobileSheetExpanded: false,
     language: localStorage.getItem('unirideLanguage') === 'hi' ? 'hi' : 'en',
+    audience: ['student', 'staff', 'visitor'].includes(localStorage.getItem('unirideAudience')) ? localStorage.getItem('unirideAudience') : '',
     hasBusSnapshot: false,
     connectionMode: 'connecting',
   };
@@ -40,7 +42,7 @@ const App = (() => {
     busRoute: { en: 'Bus / Route', hi: 'बस / मार्ग' }, stop: { en: 'Stop', hi: 'स्टॉप' }, scheduled: { en: 'Scheduled', hi: 'निर्धारित समय' }, estimatedArrival: { en: 'Est. Arrival', hi: 'अनुमानित आगमन' }, status: { en: 'Status', hi: 'स्थिति' },
     presentationScript: { en: '5-10 Minute Presentation Script', hi: '5–10 मिनट की प्रस्तुति रूपरेखा' }, interactiveGuide: { en: 'Interactive guide to demo the Dr. Harisingh Gour Vishwavidyalaya transit tracker.', hi: 'डॉ. हरिसिंह गौर विश्वविद्यालय के बस ट्रैकर का प्रदर्शन करने की मार्गदर्शिका।' },
     systemOverview: { en: '1. System Overview (1 min):', hi: '1. सिस्टम परिचय (1 मिनट):' }, systemOverviewText: { en: 'Flask REST API + SQLite spatial waypoints for DHSGSU Sagar campus on Patharia Hills + Leaflet.js real-time frontend.', hi: 'पठारिया पहाड़ियों पर स्थित DHSGSU सागर कैंपस के लिए Flask REST API, SQLite मार्ग-बिंदु और Leaflet.js लाइव इंटरफ़ेस।' },
-    trackingTelemetry: { en: '2. Real-Time Tracking & Telemetry (2 mins):', hi: '2. लाइव ट्रैकिंग और बस जानकारी (2 मिनट):' }, trackingText: { en: 'Show buses traveling along University Road, Central Library, Science Complex, and Hostels. Click any bus to inspect speed, driver, and passenger load.', hi: 'विश्वविद्यालय मार्ग, केंद्रीय पुस्तकालय, विज्ञान परिसर और छात्रावासों से गुजरती बसें दिखाएँ। गति, चालक और यात्रियों की संख्या देखने के लिए बस चुनें।' },
+    trackingTelemetry: { en: '2. Real-Time Tracking & Telemetry (2 mins):', hi: '2. लाइव ट्रैकिंग और बस जानकारी (2 मिनट):' }, trackingText: { en: 'See buses across campus roads, academic areas, residential areas, and public access points. Select any bus to view its speed, driver, and passenger load.', hi: 'कैंपस की सड़कों, शैक्षणिक और आवासीय क्षेत्रों तथा सार्वजनिक प्रवेश बिंदुओं पर बसें देखें। गति, चालक और यात्रियों की जानकारी के लिए कोई बस चुनें।' },
     delaySimulation: { en: '3. Delay Simulation & Notification Banner (3 mins):', hi: '3. देरी का प्रदर्शन और सूचना (3 मिनट):' }, delayText: { en: 'Simulate a delay on Bus 101 to demonstrate the immediate delay banner, map beacon, and timetable adjustment:', hi: 'बस 101 में देरी दिखाकर सूचना-पट्टी, मानचित्र संकेत और समय सारणी में बदलाव प्रदर्शित करें:' },
     simulateDelayBus: { en: 'Simulate Delay (Bus 101)', hi: 'बस 101 में देरी दिखाएँ' }, resolveDelay: { en: 'Resolve Delay', hi: 'देरी हटाएँ' }, locationUpdates: { en: '4. Live REST API Location Updates (2 mins):', hi: '4. लाइव REST API स्थान अपडेट (2 मिनट):' }, stepText: { en: 'Step simulation forward to show asynchronous GPS telemetry updates:', hi: 'GPS अपडेट दिखाने के लिए सिमुलेशन को एक कदम आगे बढ़ाएँ:' }, stepGps: { en: 'Step GPS Ping (1 tick)', hi: 'GPS अपडेट आगे बढ़ाएँ (1 चरण)' },
     centralExpress: { en: 'Campus Central Express', hi: 'कैंपस सेंट्रल एक्सप्रेस' }, scienceHealth: { en: 'Science & Health', hi: 'विज्ञान और स्वास्थ्य' }, hostelsSports: { en: 'Hostels & Sports', hi: 'छात्रावास और खेल' }, campusTransitSystem: { en: 'Dr. Harisingh Gour Vishwavidyalaya Campus Transit System', hi: 'डॉ. हरिसिंह गौर विश्वविद्यालय कैंपस बस सेवा' },
@@ -62,10 +64,16 @@ const App = (() => {
     collapseSheet: { en: 'Collapse bus and schedule sheet', hi: 'बस और समय सारणी पैनल समेटें' }, expandSheet: { en: 'Expand bus and schedule sheet', hi: 'बस और समय सारणी पैनल खोलें' },
     mapFiltersSummary: { en: 'Map filters and service summary', hi: 'मानचित्र फ़िल्टर और सेवा सारांश' }, routeFilter: { en: 'Filter buses by route', hi: 'मार्ग के अनुसार बसें छाँटें' }, mainNavigation: { en: 'Main navigation', hi: 'मुख्य नेविगेशन' }, openDemoControls: { en: 'Open demo controls', hi: 'डेमो नियंत्रण खोलें' }, demoDialog: { en: 'Demo controls', hi: 'डेमो नियंत्रण' },
     pageTitle: { en: 'UniRide — Dr. Harisingh Gour Vishwavidyalaya Transit Tracker', hi: 'UniRide — डॉ. हरिसिंह गौर विश्वविद्यालय बस ट्रैकर' }, mapUnavailable: { en: 'Interactive map could not load. Bus details remain available in the fleet list.', hi: 'इंटरैक्टिव मानचित्र लोड नहीं हो सका। बसों की जानकारी सूची में उपलब्ध है।' },
-    unableDelay: { en: 'Unable to trigger delay.', hi: 'देरी शुरू नहीं की जा सकी।' }, unableClearDelays: { en: 'Unable to clear delays.', hi: 'देरी हटाई नहीं जा सकी।' }, unableReset: { en: 'Unable to reset the demo.', hi: 'डेमो रीसेट नहीं किया जा सका।' },
+    unableDelay: { en: 'Unable to trigger delay.', hi: 'देरी शुरू नहीं की जा सकी।' }, unableClearDelays: { en: 'Unable to clear delays.', hi: 'देरी हटाई नहीं जा सकी।' }, unableReset: { en: 'Unable to reset the demo.', hi: 'डेमो रीसेट नहीं किया जा सका।' }, unableGpsPush: { en: 'Unable to push the GPS update.', hi: 'GPS अपडेट नहीं भेजा जा सका।' },
     adminPrompt: { en: 'Enter the admin token to simulate or clear a delay:', hi: 'देरी शुरू करने या हटाने के लिए एडमिन टोकन दर्ज करें:' }, adminRejected: { en: 'The admin token was not accepted. Please try again.', hi: 'एडमिन टोकन स्वीकार नहीं हुआ। कृपया फिर से प्रयास करें।' },
     gpsPushed: { en: 'Pushed GPS Telemetry to Backend!', hi: 'GPS जानकारी बैकएंड को भेज दी गई!' }, newCoordinates: { en: 'New Coordinates', hi: 'नए निर्देशांक' }, resetBaseline: { en: 'Reset all buses, schedules, and alerts back to baseline demo state?', hi: 'क्या सभी बसों, समय सारणी और सूचनाओं को शुरुआती डेमो स्थिति में रीसेट करें?' }, demoResetSuccess: { en: 'Demo database reset successfully.', hi: 'डेमो डेटा सफलतापूर्वक रीसेट हुआ।' },
     noBusAvailable: { en: 'No bus is available to delay.', hi: 'देरी के लिए कोई बस उपलब्ध नहीं है।' }, busAlreadyDelayed: { en: 'Bus {bus} already has an active delay. Use Clear All Delays to resolve it.', hi: 'बस {bus} में पहले से देरी है। इसे हटाने के लिए “सभी देरी हटाएँ” चुनें।' }, delayTriggered: { en: 'Delay triggered on Bus {bus}.', hi: 'बस {bus} में देरी शुरू की गई।' }, noDelaysToClear: { en: 'There are no active delays to clear.', hi: 'हटाने के लिए कोई सक्रिय देरी नहीं है।' }, delaysCleared: { en: 'Cleared delays on {count} {busWord}.', hi: '{count} {busWord} से देरी हटा दी गई।' }, oneBus: { en: 'bus', hi: 'बस' }, manyBuses: { en: 'buses', hi: 'बसों' }, confirmReset: { en: 'Are you sure? This resets buses, schedules, and alerts to the demo starting state.', hi: 'क्या आप निश्चित हैं? इससे बसें, समय सारणी और सूचनाएँ शुरुआती स्थिति में लौट जाएँगी।' }, resetComplete: { en: 'Demo reset complete.', hi: 'डेमो रीसेट हो गया।' },
+    aboutTitle: { en: 'About / How to Use', hi: 'परिचय / उपयोग कैसे करें' }, aboutShort: { en: 'About', hi: 'परिचय' },
+    aboutTextOne: { en: 'UniRide shows campus bus routes, stops, and live bus positions. Choose a route filter, then look for the nearest stop marker on the map; select a bus for its next stop and estimated arrival.', hi: 'UniRide कैंपस बसों के मार्ग, स्टॉप और उनकी लाइव स्थिति दिखाता है। मार्ग फ़िल्टर चुनें और मानचित्र पर पास का स्टॉप देखें; बस चुनने पर अगला स्टॉप और अनुमानित आगमन समय दिखेगा।' },
+    aboutTextTwo: { en: 'The service is useful to students, university staff and faculty, and visitors or local residents. Bus locations in this demo are simulated.', hi: 'यह सेवा विद्यार्थियों, विश्वविद्यालय के कर्मचारियों और शिक्षकों, आगंतुकों तथा स्थानीय निवासियों के लिए उपयोगी है। इस डेमो में बसों की स्थिति सिमुलेशन से दिखाई जाती है।' },
+    audiencePrompt: { en: 'I am a...', hi: 'मैं हूँ...' }, audienceDescription: { en: 'Choose a view to highlight useful routes. All routes and features remain available.', hi: 'उपयोगी मार्गों को प्राथमिकता से देखने के लिए एक विकल्प चुनें। सभी मार्ग और सुविधाएँ उपलब्ध रहेंगी।' },
+    student: { en: 'Student', hi: 'विद्यार्थी' }, professorStaff: { en: 'Professor / Staff', hi: 'प्राध्यापक / कर्मचारी' }, visitorLocal: { en: 'Visitor / Local Resident', hi: 'आगंतुक / स्थानीय निवासी' },
+    chooseAudience: { en: 'Choose audience', hi: 'दर्शक चुनें' }, changeAudience: { en: 'Change audience', hi: 'दर्शक बदलें' }, continueGeneral: { en: 'Continue with general view', hi: 'सामान्य दृश्य के साथ आगे बढ़ें' }, largerText: { en: 'Larger Text', hi: 'बड़ा अक्षर' },
   };
 
   const NAME_TRANSLATIONS = {
@@ -79,7 +87,7 @@ const App = (() => {
     'botanical garden': 'वनस्पति उद्यान', 'law faculty junction': 'विधि संकाय चौराहा',
     'shopping complex': 'खरीदारी परिसर', 'boys hostel block': 'बालक छात्रावास भवन',
     'sports complex/stadium': 'खेल परिसर / स्टेडियम', 'girls hostel block': 'बालिका छात्रावास भवन',
-    'student activity centre': 'छात्र गतिविधि केंद्र', 'faculty residences': 'शिक्षक आवास',
+    'student activity centre': 'छात्र गतिविधि केंद्र', 'faculty residences': 'शिक्षक आवास', 'staff quarters': 'कर्मचारी आवास', 'guest house': 'अतिथि गृह',
   };
 
   function t(key, values = {}) {
@@ -116,6 +124,8 @@ const App = (() => {
       toggle.setAttribute('aria-label', t('languageToggle'));
       toggle.title = t('languageToggle');
     }
+    updateAudienceLabel();
+    updateFontSizeButton();
     const lastUpdated = document.getElementById('bottomLastUpdated');
     if (lastUpdated?.dataset.lastUpdatedTime) lastUpdated.textContent = `${t('liveTelemetry')} • ${lastUpdated.dataset.lastUpdatedTime}`;
     if (state.simRunning === false) {
@@ -139,7 +149,7 @@ const App = (() => {
   function renderLocalizedDynamicContent() {
     const tab = document.body.dataset.activeTab || 'fleet';
     const label = document.getElementById('sheetToggleLabel');
-    if (label) label.textContent = t(tab === 'schedules' ? 'schedules' : tab === 'presentation' ? 'demoGuide' : 'liveFleet');
+    if (label) label.textContent = t(tab === 'schedules' ? 'schedules' : tab === 'presentation' ? 'demoGuide' : tab === 'about' ? 'aboutShort' : 'liveFleet');
     const scheduleSelect = document.getElementById('scheduleRouteSelect');
     if (scheduleSelect && state.routes.length) {
       const selected = scheduleSelect.value;
@@ -178,12 +188,17 @@ const App = (() => {
    */
   async function init() {
     document.body.dataset.activeTab = 'fleet';
+    state.audienceRouteCodes = audienceRoutes(state.audience);
+    const savedFilter = localStorage.getItem('unirideRouteFilter');
+    state.selectedRouteFilter = ['all', 'CAMP-10', 'SCI-20', 'HOST-30'].includes(savedFilter) ? savedFilter : 'all';
     document.body.dataset.mobileSheetState = 'collapsed';
     document.querySelector('.sidebar')?.classList.add('is-collapsed');
     document.querySelectorAll('.demo-section').forEach(section => {
       section.open = !window.matchMedia('(max-width: 768px)').matches;
     });
     applyTranslations();
+    syncRouteFilterButtons();
+    if (!localStorage.getItem('unirideAudience')) openAudienceDialog();
     try {
       if (typeof L === 'undefined') throw new Error('Leaflet did not load');
       initMap();
@@ -254,6 +269,36 @@ const App = (() => {
       localStorage.setItem('unirideLanguage', state.language);
       applyTranslations();
     });
+    document.getElementById('audienceToggle')?.addEventListener('click', openAudienceDialog);
+    document.getElementById('fontSizeToggle')?.addEventListener('click', () => {
+      const enlarged = !document.documentElement.classList.contains('large-text');
+      document.documentElement.classList.toggle('large-text', enlarged);
+      localStorage.setItem('unirideLargeText', enlarged ? 'true' : 'false');
+      updateFontSizeButton();
+    });
+    document.getElementById('audienceDialogClose')?.addEventListener('click', dismissAudienceDialog);
+    document.getElementById('audienceDismiss')?.addEventListener('click', () => {
+      localStorage.setItem('unirideAudience', 'general');
+      state.audience = 'general';
+      closeAudienceDialog();
+      updateAudienceLabel();
+    });
+    document.querySelectorAll('[data-audience]').forEach(button => button.addEventListener('click', () => {
+      state.audience = button.dataset.audience;
+      localStorage.setItem('unirideAudience', state.audience);
+      state.audienceRouteCodes = audienceRoutes(state.audience);
+      state.selectedRouteFilter = 'all';
+      localStorage.setItem('unirideRouteFilter', state.selectedRouteFilter);
+      syncRouteFilterButtons();
+      applyRouteFilter();
+      closeAudienceDialog();
+      updateAudienceLabel();
+    }));
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Escape' && !document.getElementById('audienceDialog')?.hidden) dismissAudienceDialog();
+    });
+    document.documentElement.classList.toggle('large-text', localStorage.getItem('unirideLargeText') === 'true');
+    updateFontSizeButton();
     // Tab Switching
     document.querySelectorAll('.tab-btn, .bottom-nav-btn').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -265,6 +310,7 @@ const App = (() => {
     document.querySelectorAll('.chip').forEach(chip => {
       chip.addEventListener('click', () => {
         state.selectedRouteFilter = chip.getAttribute('data-filter');
+        localStorage.setItem('unirideRouteFilter', state.selectedRouteFilter);
         document.querySelectorAll('.chip').forEach(c => {
           c.classList.toggle('active', c.getAttribute('data-filter') === state.selectedRouteFilter);
         });
@@ -385,6 +431,50 @@ const App = (() => {
     }
   }
 
+  function audienceRoutes(audience) {
+    if (audience === 'student') return ['HOST-30'];
+    if (audience === 'staff') return ['CAMP-10', 'HOST-30'];
+    if (audience === 'visitor') return ['CAMP-10', 'HOST-30'];
+    return [];
+  }
+
+  function syncRouteFilterButtons() {
+    document.querySelectorAll('.chip').forEach(chip => chip.classList.toggle('active', chip.dataset.filter === state.selectedRouteFilter));
+  }
+
+  function updateAudienceLabel() {
+    const label = document.getElementById('audienceLabel');
+    if (!label) return;
+    const key = state.audience === 'student' ? 'student' : state.audience === 'staff' ? 'professorStaff' : state.audience === 'visitor' ? 'visitorLocal' : 'chooseAudience';
+    label.textContent = t(key);
+  }
+
+  function updateFontSizeButton() {
+    const button = document.getElementById('fontSizeToggle');
+    const active = document.documentElement.classList.contains('large-text');
+    if (button) button.setAttribute('aria-pressed', String(active));
+  }
+
+  function openAudienceDialog() {
+    const dialog = document.getElementById('audienceDialog');
+    if (dialog) { dialog.hidden = false; dialog.querySelector('[data-audience]')?.focus(); }
+  }
+
+  function closeAudienceDialog() {
+    const dialog = document.getElementById('audienceDialog');
+    if (dialog) dialog.hidden = true;
+    document.getElementById('audienceToggle')?.focus();
+  }
+
+  function dismissAudienceDialog() {
+    if (!localStorage.getItem('unirideAudience')) {
+      state.audience = 'general';
+      localStorage.setItem('unirideAudience', 'general');
+    }
+    closeAudienceDialog();
+    updateAudienceLabel();
+  }
+
   function activateTab(targetTab) {
     if (!targetTab) return;
     document.body.dataset.activeTab = targetTab;
@@ -403,7 +493,7 @@ const App = (() => {
     const label = document.getElementById('sheetToggleLabel');
     if (label) label.textContent = t(targetTab === 'schedules'
       ? 'schedules'
-      : targetTab === 'presentation' ? 'demoGuide' : 'liveFleet');
+      : targetTab === 'presentation' ? 'demoGuide' : targetTab === 'about' ? 'aboutShort' : 'liveFleet');
 
     if (targetTab === 'schedules') fetchSchedules();
     if (window.matchMedia('(max-width: 768px)').matches && targetTab !== 'presentation') {
@@ -666,7 +756,8 @@ const App = (() => {
   async function resetQuickDemo() {
     if (!window.confirm(t('confirmReset'))) return;
     try {
-      const response = await fetch('/api/demo/reset', { method: 'POST' });
+      const response = await postAdminAction('/api/demo/reset');
+      if (!response) return;
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Unable to reset the demo.');
       await Promise.all([fetchRoutes(), fetchBuses(), fetchNotifications(), fetchSchedules()]);
@@ -886,6 +977,7 @@ const App = (() => {
     // Filter Sidebar Cards
     document.querySelectorAll('.bus-card').forEach(card => {
       const code = card.getAttribute('data-route-code');
+      card.classList.toggle('audience-recommended', state.audienceRouteCodes?.includes(code));
       if (filter === 'all' || code === filter) {
         card.style.display = 'block';
       } else {
@@ -908,6 +1000,9 @@ const App = (() => {
     // Filter Polylines
     if (state.map) Object.keys(state.routePolylines).forEach(code => {
       const { line, glow } = state.routePolylines[code];
+      const recommended = state.audienceRouteCodes?.includes(code);
+      line.setStyle({ weight: recommended ? 6 : 4, opacity: recommended ? 1 : 0.9 });
+      glow.setStyle({ weight: recommended ? 11 : 8, opacity: recommended ? 0.35 : 0.25 });
       if (filter === 'all' || code === filter) {
         if (!state.map.hasLayer(line)) line.addTo(state.map);
         if (!state.map.hasLayer(glow)) glow.addTo(state.map);
@@ -1270,6 +1365,22 @@ const App = (() => {
     return token;
   }
 
+  async function postAdminAction(url, options = {}) {
+    const adminToken = getAdminToken();
+    if (!adminToken) return null;
+    const response = await fetch(url, {
+      ...options,
+      method: 'POST',
+      headers: { ...(options.headers || {}), 'X-Admin-Token': adminToken },
+    });
+    if (response.status === 401) {
+      sessionStorage.removeItem('unirideAdminToken');
+      alert(t('adminRejected'));
+      return null;
+    }
+    return response;
+  }
+
   async function triggerDelay(busId, minutes, reason) {
     const adminToken = getAdminToken();
     if (!adminToken) return;
@@ -1308,7 +1419,10 @@ const App = (() => {
    */
   async function stepSimulation() {
     try {
-      await fetch('/api/demo/step', { method: 'POST' });
+      const response = await postAdminAction('/api/demo/step');
+      if (!response) return;
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Unable to step the simulation.');
       await fetchBuses();
     } catch (err) {
       console.error('Error stepping simulation:', err);
@@ -1323,12 +1437,14 @@ const App = (() => {
       // Pick Bus 101 and nudge coordinate slightly
       const bus = state.buses[0];
       if (!bus) return;
-      const nudgeLat = bus.current_lat + 0.0008;
-      const nudgeLng = bus.current_lng + 0.0008;
+      const adminToken = getAdminToken();
+      if (!adminToken) return;
+      const nudgeLat = bus.current_lat + 0.00025;
+      const nudgeLng = bus.current_lng + 0.00025;
 
-      const res = await fetch(`/api/buses/${bus.id}/location`, {
+      const res = await fetch(`/api/demo/buses/${bus.id}/location`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-Admin-Token': adminToken },
         body: JSON.stringify({
           lat: nudgeLat,
           lng: nudgeLng,
@@ -1338,11 +1454,18 @@ const App = (() => {
         }),
       });
       const data = await res.json();
-      alert(`${t('gpsPushed')}\nEndpoint: POST /api/buses/${bus.id}/location\n${t('newCoordinates')}: [${nudgeLat.toFixed(5)}, ${nudgeLng.toFixed(5)}]`);
+      if (res.status === 401) {
+        sessionStorage.removeItem('unirideAdminToken');
+        alert(data.error || t('adminRejected'));
+        return;
+      }
+      if (!res.ok) throw new Error(data.error || t('unableGpsPush'));
+      alert(`${t('gpsPushed')}\nEndpoint: POST /api/demo/buses/${bus.id}/location\n${t('newCoordinates')}: [${nudgeLat.toFixed(5)}, ${nudgeLng.toFixed(5)}]`);
       await fetchBuses();
       selectBus(bus.id, true);
     } catch (err) {
       console.error('Error pushing manual coordinates:', err);
+      alert(err.message || t('unableGpsPush'));
     }
   }
 
@@ -1351,8 +1474,10 @@ const App = (() => {
    */
   async function toggleSimulation() {
     try {
-      const res = await fetch('/api/demo/toggle-simulation', { method: 'POST' });
+      const res = await postAdminAction('/api/demo/toggle-simulation');
+      if (!res) return;
       const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Unable to toggle the simulation.');
       state.simRunning = data.running;
 
       const liveDot = document.getElementById('liveDot');
@@ -1387,7 +1512,10 @@ const App = (() => {
   async function resetDemoState() {
     if (!confirm(t('resetBaseline'))) return;
     try {
-      await fetch('/api/demo/reset', { method: 'POST' });
+      const response = await postAdminAction('/api/demo/reset');
+      if (!response) return;
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || t('unableReset'));
       await fetchRoutes();
       await fetchBuses();
       await fetchNotifications();

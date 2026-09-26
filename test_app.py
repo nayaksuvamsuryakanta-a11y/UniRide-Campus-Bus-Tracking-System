@@ -142,6 +142,26 @@ class CampusBusTestCase(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn('Sagar', response.get_json()['error'])
 
+    def test_demo_location_update_accepts_admin_token_and_updates_bus(self):
+        bus = next(bus for bus in self.client.get('/api/buses').get_json()['buses'] if bus['id'] == 1)
+        new_lat = bus['current_lat'] + 0.00001
+        payload = {'lat': new_lat, 'lng': bus['current_lng'], 'speed_mph': 22.4, 'heading': 45}
+        with patch.dict(os.environ, {'ADMIN_TOKEN': 'test-admin-token'}):
+            response = self.client.post(
+                '/api/demo/buses/1/location', json=payload,
+                headers={'X-Admin-Token': 'test-admin-token'},
+            )
+        self.assertEqual(response.status_code, 200)
+        updated_bus = next(bus for bus in self.client.get('/api/buses').get_json()['buses'] if bus['id'] == 1)
+        self.assertAlmostEqual(updated_bus['current_lat'], new_lat)
+        self.assertEqual(updated_bus['current_lng'], bus['current_lng'])
+
+    def test_demo_location_update_requires_admin_token(self):
+        with patch.dict(os.environ, {'ADMIN_TOKEN': 'test-admin-token'}):
+            response = self.client.post('/api/demo/buses/1/location', json={'lat': 23.8268, 'lng': 78.7712})
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(response.get_json()['status'], 'error')
+
     def test_get_routes(self):
         """Test GET /api/routes returns route paths and stops."""
         response = self.client.get('/api/routes')
@@ -229,6 +249,61 @@ class CampusBusTestCase(unittest.TestCase):
             response = self.client.post('/api/demo/toggle-delay/2')
         self.assertEqual(response.status_code, 401)
         self.assertEqual(response.get_json()['status'], 'error')
+
+    def test_demo_step_requires_admin_token(self):
+        with patch.dict(os.environ, {'ADMIN_TOKEN': 'test-admin-token'}):
+            missing = self.client.post('/api/demo/step')
+            invalid = self.client.post('/api/demo/step', headers={'X-Admin-Token': 'wrong-token'})
+        self.assertEqual(missing.status_code, 401)
+        self.assertEqual(invalid.status_code, 401)
+
+    def test_demo_step_accepts_admin_token(self):
+        with patch.dict(os.environ, {'ADMIN_TOKEN': 'test-admin-token'}):
+            with patch('app.simulation.step_simulation_once') as step:
+                response = self.client.post('/api/demo/step', headers={'X-Admin-Token': 'test-admin-token'})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()['status'], 'success')
+        step.assert_called_once_with()
+
+    def test_demo_toggle_simulation_requires_admin_token(self):
+        with patch.dict(os.environ, {'ADMIN_TOKEN': 'test-admin-token'}):
+            missing = self.client.post('/api/demo/toggle-simulation')
+            invalid = self.client.post('/api/demo/toggle-simulation', headers={'X-Admin-Token': 'wrong-token'})
+        self.assertEqual(missing.status_code, 401)
+        self.assertEqual(invalid.status_code, 401)
+
+    def test_demo_toggle_simulation_accepts_admin_token(self):
+        with patch.dict(os.environ, {'ADMIN_TOKEN': 'test-admin-token'}):
+            response = self.client.post('/api/demo/toggle-simulation',
+                                        headers={'X-Admin-Token': 'test-admin-token'})
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.get_json()['running'])
+        simulation.pause_simulation()
+
+    def test_demo_reset_requires_admin_token(self):
+        with patch.dict(os.environ, {'ADMIN_TOKEN': 'test-admin-token'}):
+            missing = self.client.post('/api/demo/reset')
+            invalid = self.client.post('/api/demo/reset', headers={'X-Admin-Token': 'wrong-token'})
+        self.assertEqual(missing.status_code, 401)
+        self.assertEqual(invalid.status_code, 401)
+
+    def test_demo_reset_accepts_admin_token_and_restores_seed_data(self):
+        conn = get_db()
+        conn.execute('UPDATE buses SET current_lat = 0, current_lng = 0 WHERE id = 1')
+        conn.commit()
+        conn.close()
+        with patch.dict(os.environ, {'ADMIN_TOKEN': 'test-admin-token'}):
+            response = self.client.post('/api/demo/reset', headers={'X-Admin-Token': 'test-admin-token'})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()['status'], 'success')
+        bus = next(bus for bus in self.client.get('/api/buses').get_json()['buses'] if bus['id'] == 1)
+        self.assertAlmostEqual(bus['current_lat'], 23.834)
+        self.assertAlmostEqual(bus['current_lng'], 78.7675)
+
+    def test_demo_simulation_status_only_exposes_running_state(self):
+        response = self.client.get('/api/demo/simulation-status')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(set(response.get_json()), {'running'})
 
 if __name__ == '__main__':
     unittest.main()

@@ -130,13 +130,20 @@ def stream_buses():
 
 @app.route('/api/buses/<int:bus_id>/location', methods=['POST'])
 def update_bus_location(bus_id):
+    """Accept GPS-client position updates protected by the shared GPS token."""
+    return _location_update_response(bus_id, request.headers.get('X-Update-Token', ''))
+
+
+def _configured_gps_update_token():
+    return os.environ.get('GPS_UPDATE_TOKEN') or _GENERATED_GPS_UPDATE_TOKEN
+
+
+def _location_update_response(bus_id, supplied_token):
     """
-    Update a specific bus's live location and status.
-    Expected JSON payload: { lat, lng, speed_mph?, heading?, status?, next_stop_name?, eta_minutes? }
+    Validate a trusted update token and apply the shared GPS input validation.
+    Demo callers pass the configured server token only after admin authorization.
     """
-    expected_token = os.environ.get('GPS_UPDATE_TOKEN') or _GENERATED_GPS_UPDATE_TOKEN
-    supplied_token = request.headers.get('X-Update-Token', '')
-    if not hmac.compare_digest(supplied_token, expected_token):
+    if not hmac.compare_digest(supplied_token, _configured_gps_update_token()):
         logger.warning('Rejected GPS update for bus %s from %s: invalid or missing update token', bus_id, request.remote_addr)
         return jsonify({'status': 'error', 'error': 'A valid update token is required'}), 401
 
@@ -231,6 +238,17 @@ def update_bus_location(bus_id):
         'lng': lng,
         'updated_at': now_str
     })
+
+
+@app.route('/api/demo/buses/<int:bus_id>/location', methods=['POST'])
+def demo_update_bus_location(bus_id):
+    """Accept a dashboard GPS demo update after the shared admin-token check."""
+    admin_token = os.environ.get('ADMIN_TOKEN')
+    if not admin_token:
+        return jsonify({'status': 'error', 'error': 'Admin actions are disabled because ADMIN_TOKEN is not configured'}), 503
+    if not hmac.compare_digest(request.headers.get('X-Admin-Token', ''), admin_token):
+        return jsonify({'status': 'error', 'error': 'A valid admin token is required'}), 401
+    return _location_update_response(bus_id, _configured_gps_update_token())
 
 @app.route('/api/routes', methods=['GET'])
 def get_routes():
@@ -357,6 +375,11 @@ def dismiss_notification(alert_id):
 @app.route('/api/demo/step', methods=['POST'])
 def demo_step():
     """Manually step all buses forward along their routes."""
+    admin_token = os.environ.get('ADMIN_TOKEN')
+    if not admin_token:
+        return jsonify({'status': 'error', 'error': 'Admin actions are disabled because ADMIN_TOKEN is not configured'}), 503
+    if not hmac.compare_digest(request.headers.get('X-Admin-Token', ''), admin_token):
+        return jsonify({'status': 'error', 'error': 'A valid admin token is required'}), 401
     simulation.step_simulation_once()
     return jsonify({'status': 'success', 'message': 'Simulated 1 step movement'})
 
@@ -388,6 +411,11 @@ def demo_toggle_delay(bus_id):
 @app.route('/api/demo/toggle-simulation', methods=['POST'])
 def demo_toggle_simulation():
     """Toggle live automatic background simulation."""
+    admin_token = os.environ.get('ADMIN_TOKEN')
+    if not admin_token:
+        return jsonify({'status': 'error', 'error': 'Admin actions are disabled because ADMIN_TOKEN is not configured'}), 503
+    if not hmac.compare_digest(request.headers.get('X-Admin-Token', ''), admin_token):
+        return jsonify({'status': 'error', 'error': 'A valid admin token is required'}), 401
     if simulation.is_simulation_running():
         simulation.pause_simulation()
         state = False
@@ -404,6 +432,11 @@ def demo_simulation_status():
 @app.route('/api/demo/reset', methods=['POST'])
 def demo_reset():
     """Reset database to initial seed state."""
+    admin_token = os.environ.get('ADMIN_TOKEN')
+    if not admin_token:
+        return jsonify({'status': 'error', 'error': 'Admin actions are disabled because ADMIN_TOKEN is not configured'}), 503
+    if not hmac.compare_digest(request.headers.get('X-Admin-Token', ''), admin_token):
+        return jsonify({'status': 'error', 'error': 'A valid admin token is required'}), 401
     init_db(reset=True)
     simulation.notify_bus_update()
     return jsonify({'status': 'success', 'message': 'Database reset to initial demo state'})
