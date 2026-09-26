@@ -35,7 +35,7 @@ const App = (() => {
     liveFeed: { en: 'LIVE FEED (3s)', hi: 'लाइव अपडेट (3 सेकंड)' }, connectedLive: { en: 'Live connection', hi: 'लाइव कनेक्शन' }, pollingConnection: { en: 'Polling for updates', hi: 'अपडेट जाँचे जा रहे हैं' },
     pauseEngine: { en: 'Pause Engine', hi: 'सिमुलेशन रोकें' }, resumeEngine: { en: 'Resume Engine', hi: 'सिमुलेशन चलाएँ' }, simPaused: { en: 'SIM PAUSED', hi: 'सिमुलेशन रुका है' }, pauseSimulation: { en: 'Pause simulation', hi: 'सिमुलेशन रोकें' }, resumeSimulation: { en: 'Resume simulation', hi: 'सिमुलेशन चलाएँ' },
     bus: { en: 'Bus', hi: 'बस' }, busesActive: { en: 'Buses Active', hi: 'सक्रिय बसें' }, campusRoutes: { en: 'Campus Routes', hi: 'कैंपस मार्ग' }, activeDelays: { en: 'Active Delays', hi: 'वर्तमान देरी' },
-    pauseSim: { en: 'Pause Sim', hi: 'सिमुलेशन रोकें' }, resumeSim: { en: 'Resume Sim', hi: 'सिमुलेशन चलाएँ' }, demoControls: { en: 'Demo Controls', hi: 'डेमो नियंत्रण' },
+    pauseSim: { en: 'Pause Sim', hi: 'सिमुलेशन रोकें' }, resumeSim: { en: 'Resume Sim', hi: 'सिमुलेशन चलाएँ' }, demoControls: { en: 'Demo Controls', hi: 'डेमो नियंत्रण' }, fullDemoTools: { en: 'Full Demo Tools', hi: 'डेमो के सभी टूल' },
     searchRoutesStops: { en: 'Search routes or stops', hi: 'मार्ग या स्टॉप खोजें' }, liveFleet: { en: 'Live fleet', hi: 'लाइव बसें' }, schedules: { en: 'Schedules', hi: 'समय सारणी' }, demoGuide: { en: 'Demo Guide', hi: 'डेमो मार्गदर्शिका' },
     all: { en: 'All', hi: 'सभी' }, express: { en: 'Express', hi: 'एक्सप्रेस' }, tech: { en: 'Tech', hi: 'विज्ञान' }, residences: { en: 'Residences', hi: 'आवास' }, filter: { en: 'Filter:', hi: 'फ़िल्टर:' },
     connectingTelemetry: { en: 'Connecting to DHSGSU bus telemetry...', hi: 'DHSGSU बस जानकारी से जुड़ रहे हैं...' }, selectRoute: { en: 'Select Route:', hi: 'मार्ग चुनें:' }, allCampusRoutes: { en: 'All DHSGSU Campus Routes', hi: 'DHSGSU के सभी कैंपस मार्ग' },
@@ -233,8 +233,7 @@ const App = (() => {
     });
 
     // Mobile zoom controls sit above the future collapsed bottom sheet.
-    const isMobileViewport = window.matchMedia('(max-width: 768px)').matches;
-    L.control.zoom({ position: isMobileViewport ? 'bottomright' : 'topright' }).addTo(state.map);
+    L.control.zoom({ position: 'bottomright' }).addTo(state.map);
 
     const invalidateMobileMapSize = () => {
       if (window.innerWidth > 768) return;
