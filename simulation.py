@@ -2,8 +2,25 @@ import time
 import json
 import random
 import threading
+import logging
+import math
 from datetime import datetime
 from database import get_db, calculate_bearing
+
+logger = logging.getLogger(__name__)
+
+
+def _distance_miles(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
+    """Return straight-line distance between two coordinates in miles."""
+    earth_radius_miles = 3958.8
+    lat1_r, lat2_r = math.radians(lat1), math.radians(lat2)
+    delta_lat = math.radians(lat2 - lat1)
+    delta_lng = math.radians(lng2 - lng1)
+    haversine = (
+        math.sin(delta_lat / 2) ** 2
+        + math.cos(lat1_r) * math.cos(lat2_r) * math.sin(delta_lng / 2) ** 2
+    )
+    return 2 * earth_radius_miles * math.asin(math.sqrt(haversine))
 
 # Global simulation state
 _sim_thread = None
@@ -83,26 +100,21 @@ def step_simulation_once() -> None:
             eta_mins = bus['eta_minutes']
 
             if stops:
-                # Find stop with minimum positive distance along route, or cyclical
-                # Approximate distance to each stop from current coords
+                # Use the geographically closest stop as the next-stop estimate.
                 closest_stop = None
                 min_dist = float('inf')
                 for st in stops:
-                    d = (st['lat'] - new_lat) ** 2 + (st['lng'] - new_lng) ** 2
+                    d = _distance_miles(new_lat, new_lng, st['lat'], st['lng'])
                     if d < min_dist:
                         min_dist = d
                         closest_stop = st
 
                 if closest_stop:
-                    # If very close, bus is arriving!
-                    if min_dist < 0.00003:
-                        next_stop_name = closest_stop['name']
-                        eta_mins = 1
-                    else:
-                        next_stop_name = closest_stop['name']
-                        # Calculate rough ETA: 1 to 5 mins plus delay
-                        base_eta = max(1, int((min_dist ** 0.5) * 600))
-                        eta_mins = min(base_eta + (bus['delay_minutes'] // 2), 15)
+                    next_stop_name = closest_stop['name']
+                    eta_mins = (
+                        math.ceil(min_dist / speed * 60)
+                        if speed > 0 else None
+                    )
 
             cursor.execute('''
             UPDATE buses
@@ -128,8 +140,8 @@ def _simulation_worker() -> None:
         if _sim_running:
             try:
                 step_simulation_once()
-            except Exception as e:
-                print(f"[Sim Error] {e}")
+            except Exception:
+                logger.exception("Simulation step failed")
         time.sleep(_sim_interval_seconds)
 
 def start_simulation() -> None:

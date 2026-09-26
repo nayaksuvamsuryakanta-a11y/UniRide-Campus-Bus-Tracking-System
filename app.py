@@ -1,13 +1,25 @@
 import os
 import json
 import math
+import logging
 from datetime import datetime
 from flask import Flask, Response, render_template, jsonify, request, stream_with_context
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from werkzeug.exceptions import HTTPException
 from database import get_db, init_db
 import simulation
+from logging_config import configure_logging
 
+configure_logging()
+logger = logging.getLogger(__name__)
 app = Flask(__name__)
+limiter = Limiter(
+    get_remote_address,
+    app=app,
+    default_limits=['60 per minute'],
+    default_limits_exempt_when=lambda: not request.path.startswith('/api/'),
+)
 
 
 @app.errorhandler(HTTPException)
@@ -339,8 +351,6 @@ if __name__ == '__main__':
     host = os.environ.get('CAMPUS_BUS_HOST', '127.0.0.1')
     port = int(os.environ.get('CAMPUS_BUS_PORT', '5000'))
     debug = os.environ.get('CAMPUS_BUS_DEBUG', '').lower() in {'1', 'true', 'yes'}
-    print("=" * 60)
-    print("UniRide Campus Bus Tracker started!")
-    print(f"Open http://{host}:{port} in your browser.")
-    print("=" * 60)
+    logger.info("UniRide Campus Bus Tracker started")
+    logger.info("Open http://%s:%s in your browser", host, port)
     app.run(host=host, port=port, debug=debug)

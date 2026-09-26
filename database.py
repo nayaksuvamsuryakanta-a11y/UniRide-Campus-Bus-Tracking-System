@@ -2,8 +2,12 @@ import sqlite3
 import json
 import math
 import os
+import logging
 from datetime import datetime, timedelta
 from typing import Sequence
+from logging_config import configure_logging
+
+logger = logging.getLogger(__name__)
 
 DB_PATH = os.environ.get(
     'CAMPUS_BUS_DB',
@@ -391,5 +395,6 @@ def seed_data(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 if __name__ == '__main__':
+    configure_logging()
     init_db(reset=True)
-    print("DHSGSU Sagar database initialized successfully at:", DB_PATH)
+    logger.info("DHSGSU Sagar database initialized successfully at: %s", DB_PATH)

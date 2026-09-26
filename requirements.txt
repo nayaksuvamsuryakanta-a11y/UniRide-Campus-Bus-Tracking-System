@@ -1,1 +1,2 @@
 flask>=3.0.0
+Flask-Limiter>=3.8.0
