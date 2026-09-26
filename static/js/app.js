@@ -20,6 +20,7 @@ const App = (() => {
     simRunning: true,
     pollingTimer: null,
     busEventSource: null,
+    sseConnectionTimer: null,
     pollInterval: 3000,    // 3 seconds
   };
 
@@ -70,6 +71,19 @@ const App = (() => {
 
     // Add Zoom Control in top-right
     L.control.zoom({ position: 'topright' }).addTo(state.map);
+
+    const invalidateMobileMapSize = () => {
+      if (window.innerWidth > 768) return;
+      window.requestAnimationFrame(() => state.map.invalidateSize({ pan: false }));
+    };
+    window.addEventListener('resize', invalidateMobileMapSize);
+    window.addEventListener('orientationchange', () => {
+      window.setTimeout(invalidateMobileMapSize, 150);
+    });
+    if (window.ResizeObserver) {
+      const mapResizeObserver = new ResizeObserver(invalidateMobileMapSize);
+      mapResizeObserver.observe(state.map.getContainer().parentElement);
+    }
 
     // Free OpenStreetMap tile server
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -694,21 +708,41 @@ const App = (() => {
    */
   function startLiveUpdates() {
     if (typeof EventSource === 'undefined') {
-      fetchBuses();
       startPolling();
       return;
     }
 
-    state.busEventSource = new EventSource('/api/buses/stream');
-    state.busEventSource.addEventListener('buses', event => {
+    const eventSource = new EventSource('/api/buses/stream');
+    state.busEventSource = eventSource;
+    let receivedBusSnapshot = false;
+    let pollingFallbackStarted = false;
+
+    const fallbackToPolling = () => {
+      if (pollingFallbackStarted) return;
+      pollingFallbackStarted = true;
+      eventSource.close();
+      if (state.busEventSource === eventSource) state.busEventSource = null;
+      if (state.sseConnectionTimer) clearTimeout(state.sseConnectionTimer);
+      state.sseConnectionTimer = null;
+      startPolling();
+    };
+
+    state.sseConnectionTimer = setTimeout(() => {
+      if (!receivedBusSnapshot) fallbackToPolling();
+    }, 5000);
+
+    eventSource.addEventListener('buses', event => {
       try {
+        receivedBusSnapshot = true;
+        if (state.sseConnectionTimer) clearTimeout(state.sseConnectionTimer);
+        state.sseConnectionTimer = null;
         renderBusSnapshot(JSON.parse(event.data));
       } catch (err) {
         console.error('Error parsing live bus update:', err);
       }
     });
 
-    state.busEventSource.addEventListener('notifications', event => {
+    eventSource.addEventListener('notifications', event => {
       try {
         const data = JSON.parse(event.data);
         state.notifications = data.notifications || [];
@@ -718,11 +752,14 @@ const App = (() => {
         console.error('Error parsing live notification update:', err);
       }
     });
+    eventSource.onerror = fallbackToPolling;
   }
 
   /** Poll bus snapshots and notifications when EventSource is unavailable. */
   function startPolling() {
     if (state.pollingTimer) clearInterval(state.pollingTimer);
+    fetchBuses();
+    fetchNotifications();
     state.pollingTimer = setInterval(async () => {
       await fetchBuses();
       await fetchNotifications();
@@ -734,6 +771,10 @@ const App = (() => {
     if (state.busEventSource) {
       state.busEventSource.close();
       state.busEventSource = null;
+    }
+    if (state.sseConnectionTimer) {
+      clearTimeout(state.sseConnectionTimer);
+      state.sseConnectionTimer = null;
     }
     if (state.pollingTimer) {
       clearInterval(state.pollingTimer);
