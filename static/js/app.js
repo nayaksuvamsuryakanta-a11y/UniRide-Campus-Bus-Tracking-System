@@ -1057,11 +1057,12 @@ const App = (() => {
       const bus = state.buses.find(item => item.id === notif.bus_id);
       const isDelayAlert = Boolean(bus && (Number(bus.delay_minutes) > 0 || /delay/i.test(notif.title || '')));
       const delayMinutes = bus?.delay_minutes || (String(notif.title || '').match(/\+(\d+)/) || [])[1] || 15;
+      const busNumber = String(bus?.bus_number || '').replace(/^bus\s+/i, '');
       const title = isDelayAlert
-        ? t('delayOnBusTitle', { bus: bus.bus_number })
+        ? t('delayOnBusTitle', { bus: busNumber })
         : localizedName(notif.title);
       const message = isDelayAlert
-        ? t('delayOnBusMessage', { bus: bus.bus_number, minutes: delayMinutes, stop: localizedName(bus.next_stop_name) || t('route') })
+        ? t('delayOnBusMessage', { bus: busNumber, minutes: delayMinutes, stop: localizedName(bus.next_stop_name) || t('route') })
         : localizedName(notif.message);
       return `
         <div class="notification-banner ${isDanger ? 'danger' : ''}">
