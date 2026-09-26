@@ -10,8 +10,31 @@ _sim_thread = None
 _sim_running = True
 _sim_lock = threading.Lock()
 _sim_interval_seconds = 3.0
+_updates_condition = threading.Condition()
+_updates_version = 0
 
-def step_simulation_once():
+
+def get_update_version() -> int:
+    """Return the current bus update sequence for an SSE subscriber."""
+    with _updates_condition:
+        return _updates_version
+
+
+def wait_for_update(last_version: int, timeout: float) -> int:
+    """Wait until a newer bus update is published or the heartbeat times out."""
+    with _updates_condition:
+        _updates_condition.wait_for(lambda: _updates_version > last_version, timeout)
+        return _updates_version
+
+
+def notify_bus_update() -> None:
+    """Wake live bus stream clients after a committed bus data change."""
+    global _updates_version
+    with _updates_condition:
+        _updates_version += 1
+        _updates_condition.notify_all()
+
+def step_simulation_once() -> None:
     """Advance all active buses to the next waypoint along their routes."""
     with _sim_lock:
         conn = get_db()
@@ -96,8 +119,9 @@ def step_simulation_once():
 
         conn.commit()
         conn.close()
+        notify_bus_update()
 
-def _simulation_worker():
+def _simulation_worker() -> None:
     """Background worker continuously stepping the simulation."""
     global _sim_running
     while True:
@@ -108,7 +132,7 @@ def _simulation_worker():
                 print(f"[Sim Error] {e}")
         time.sleep(_sim_interval_seconds)
 
-def start_simulation():
+def start_simulation() -> None:
     """Start the background simulation thread if not already running."""
     global _sim_thread, _sim_running
     _sim_running = True
@@ -116,21 +140,23 @@ def start_simulation():
         _sim_thread = threading.Thread(target=_simulation_worker, daemon=True)
         _sim_thread.start()
 
-def pause_simulation():
+def pause_simulation() -> None:
     """Pause the background simulation thread."""
     global _sim_running
     _sim_running = False
 
-def resume_simulation():
+def resume_simulation() -> None:
     """Resume the background simulation."""
     global _sim_running
     _sim_running = True
 
-def is_simulation_running():
-    global _sim_running
+def is_simulation_running() -> bool:
+    """Return whether the background worker is currently advancing buses."""
     return _sim_running
 
-def toggle_bus_delay(bus_id, delay_minutes=15, reason="Heavy traffic near Main Gate"):
+def toggle_bus_delay(
+    bus_id: int, delay_minutes: int = 15, reason: str = "Heavy traffic near Main Gate"
+) -> tuple[bool, str]:
     """Trigger or clear a delay for a specific bus."""
     with _sim_lock:
         conn = get_db()
@@ -168,6 +194,7 @@ def toggle_bus_delay(bus_id, delay_minutes=15, reason="Heavy traffic near Main G
 
             conn.commit()
             conn.close()
+            notify_bus_update()
             return True, f"Delay resolved for {bus['bus_number']}. Status returned to On Time."
         else:
             # Add delay
@@ -195,4 +222,5 @@ def toggle_bus_delay(bus_id, delay_minutes=15, reason="Heavy traffic near Main G
 
             conn.commit()
             conn.close()
+            notify_bus_update()
             return True, f"{bus['bus_number']} marked as Delayed (+{delay_minutes}m)."

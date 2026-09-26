@@ -19,6 +19,7 @@ const App = (() => {
     showStops: true,
     simRunning: true,
     pollingTimer: null,
+    busEventSource: null,
     pollInterval: 3000,    // 3 seconds
   };
 
@@ -42,12 +43,12 @@ const App = (() => {
     
     // Initial data fetches
     await fetchRoutes();
-    await fetchBuses();
     await fetchNotifications();
     await fetchSchedules();
 
-    // Start live polling loop (every 3 seconds)
-    startPolling();
+    // Prefer server-pushed bus updates; retain polling for older browsers.
+    startLiveUpdates();
+    window.addEventListener('beforeunload', closeLiveUpdates, { once: true });
   }
 
   /**
@@ -250,15 +251,19 @@ const App = (() => {
     try {
       const res = await fetch('/api/buses');
       const data = await res.json();
-      state.buses = data.buses || [];
-
-      updateBusMarkers();
-      renderBusList();
-      updateTelemetryHeader();
-      applyRouteFilter();
+      renderBusSnapshot(data);
     } catch (err) {
       console.error('Error fetching buses:', err);
     }
+  }
+
+  /** Apply a bus snapshot received from either the API or the SSE stream. */
+  function renderBusSnapshot(data) {
+    state.buses = data.buses || [];
+    updateBusMarkers();
+    renderBusList();
+    updateTelemetryHeader();
+    applyRouteFilter();
   }
 
   /**
@@ -679,14 +684,50 @@ const App = (() => {
   }
 
   /**
-   * Live Polling Engine
+   * Live bus stream with polling fallback for browsers without EventSource.
    */
+  function startLiveUpdates() {
+    if (typeof EventSource === 'undefined') {
+      fetchBuses();
+      startPolling();
+      return;
+    }
+
+    state.busEventSource = new EventSource('/api/buses/stream');
+    state.busEventSource.addEventListener('buses', event => {
+      try {
+        renderBusSnapshot(JSON.parse(event.data));
+      } catch (err) {
+        console.error('Error parsing live bus update:', err);
+      }
+    });
+
+    // Notifications are not part of the bus position stream.
+    if (state.pollingTimer) clearInterval(state.pollingTimer);
+    state.pollingTimer = setInterval(async () => {
+      await fetchNotifications();
+    }, state.pollInterval);
+  }
+
+  /** Poll bus snapshots and notifications when EventSource is unavailable. */
   function startPolling() {
     if (state.pollingTimer) clearInterval(state.pollingTimer);
     state.pollingTimer = setInterval(async () => {
       await fetchBuses();
       await fetchNotifications();
     }, state.pollInterval);
+  }
+
+  /** Close the live stream and timers when the page is leaving. */
+  function closeLiveUpdates() {
+    if (state.busEventSource) {
+      state.busEventSource.close();
+      state.busEventSource = null;
+    }
+    if (state.pollingTimer) {
+      clearInterval(state.pollingTimer);
+      state.pollingTimer = null;
+    }
   }
 
   /**

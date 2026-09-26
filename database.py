@@ -3,15 +3,21 @@ import json
 import math
 import os
 from datetime import datetime, timedelta
+from typing import Sequence
 
-DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'campus_bus.db')
+DB_PATH = os.environ.get(
+    'CAMPUS_BUS_DB',
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), 'campus_bus.db'),
+)
 
-def get_db():
-    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+def get_db() -> sqlite3.Connection:
+    """Open a configured SQLite connection with row access and lock waiting."""
+    conn = sqlite3.connect(DB_PATH, timeout=10)
+    conn.execute('PRAGMA busy_timeout = 10000')
     conn.row_factory = sqlite3.Row
     return conn
 
-def calculate_bearing(lat1, lon1, lat2, lon2):
+def calculate_bearing(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     """Calculate forward azimuth / bearing in degrees between two coordinates."""
     lat1_r = math.radians(lat1)
     lat2_r = math.radians(lat2)
@@ -22,7 +28,9 @@ def calculate_bearing(lat1, lon1, lat2, lon2):
     bearing = math.degrees(math.atan2(y, x))
     return round((bearing + 360) % 360, 1)
 
-def interpolate_segment(pt1, pt2, steps=6):
+def interpolate_segment(
+    pt1: Sequence[float], pt2: Sequence[float], steps: int = 6
+) -> list[list[float]]:
     """Interpolate coordinates between two points."""
     points = []
     for i in range(steps):
@@ -32,7 +40,9 @@ def interpolate_segment(pt1, pt2, steps=6):
         points.append([round(lat, 6), round(lng, 6)])
     return points
 
-def build_loop(key_points, steps_per_segment=6):
+def build_loop(
+    key_points: Sequence[Sequence[float]], steps_per_segment: int = 6
+) -> list[list[float]]:
     """Build a closed loop sequence of coordinates with interpolation."""
     all_points = []
     n = len(key_points)
@@ -77,16 +87,19 @@ ROUTE_3_KEYS = [
     [23.826900, 78.771200], # Central Library Junction
 ]
 
-def init_db(reset=False):
+def init_db(reset: bool = False) -> None:
     """Initialize database schemas and seed data."""
-    if reset and os.path.exists(DB_PATH):
-        try:
-            os.remove(DB_PATH)
-        except Exception:
-            pass
-
     conn = get_db()
     cursor = conn.cursor()
+    # WAL lets API reads continue while the simulation commits a position update.
+    cursor.execute('PRAGMA journal_mode = WAL')
+    if reset:
+        # Clear tables transactionally instead of unlinking a database another
+        # connection may currently be reading or writing.
+        cursor.execute('PRAGMA foreign_keys = OFF')
+        for table in ('notifications', 'schedules', 'buses', 'stops', 'routes'):
+            cursor.execute(f'DROP TABLE IF EXISTS {table}')
+        cursor.execute('PRAGMA foreign_keys = ON')
 
     # Create Routes table
     cursor.execute('''
@@ -177,7 +190,8 @@ def init_db(reset=False):
 
     conn.close()
 
-def seed_data(conn):
+def seed_data(conn: sqlite3.Connection) -> None:
+    """Insert the initial route, bus, stop, schedule, and alert records."""
     cursor = conn.cursor()
 
     # Generate smooth waypoints

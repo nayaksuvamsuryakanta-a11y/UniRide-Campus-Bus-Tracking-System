@@ -1,11 +1,21 @@
 import os
 import json
+import math
 from datetime import datetime
-from flask import Flask, render_template, jsonify, request
+from flask import Flask, Response, render_template, jsonify, request, stream_with_context
+from werkzeug.exceptions import HTTPException
 from database import get_db, init_db
 import simulation
 
 app = Flask(__name__)
+
+
+@app.errorhandler(HTTPException)
+def handle_http_error(error: HTTPException):
+    """Return framework HTTP errors as JSON for API requests."""
+    if request.path.startswith('/api/'):
+        return jsonify({'status': 'error', 'error': error.description}), error.code
+    return error
 
 # Ensure DB is initialized
 init_db(reset=False)
@@ -20,23 +30,58 @@ def index():
 
 @app.route('/api/buses', methods=['GET'])
 def get_buses():
-    """Return live positions, telemetry, and status for all active buses."""
+    """Return live positions, telemetry, and status for every bus as JSON."""
+    return jsonify(_get_bus_snapshot())
+
+
+def _get_bus_snapshot():
+    """Read and serialize the current bus fleet, closing the DB connection."""
     conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute('''
-    SELECT b.*, r.name as route_name, r.code as route_code, r.color as route_color
-    FROM buses b
-    JOIN routes r ON b.route_id = r.id
-    ORDER BY b.bus_number
-    ''')
-    buses = [dict(row) for row in cursor.fetchall()]
-    conn.close()
-    return jsonify({
+    try:
+        cursor = conn.cursor()
+        cursor.execute('''
+        SELECT b.*, r.name as route_name, r.code as route_code, r.color as route_color
+        FROM buses b
+        LEFT JOIN routes r ON b.route_id = r.id AND r.is_active = 1
+        ORDER BY b.bus_number
+        ''')
+        buses = [dict(row) for row in cursor.fetchall()]
+    finally:
+        conn.close()
+    return {
         'status': 'success',
         'count': len(buses),
         'timestamp': datetime.now().isoformat(),
         'buses': buses
-    })
+    }
+
+
+@app.route('/api/buses/stream', methods=['GET'])
+def stream_buses():
+    """Stream initial and changed bus snapshots using Server-Sent Events."""
+    def event_stream():
+        version = simulation.get_update_version()
+        try:
+            initial = json.dumps(_get_bus_snapshot(), separators=(',', ':'))
+            yield f'retry: 3000\nevent: buses\ndata: {initial}\n\n'
+            while True:
+                next_version = simulation.wait_for_update(version, timeout=15.0)
+                if next_version == version:
+                    yield ': keep-alive\n\n'
+                    continue
+                version = next_version
+                payload = json.dumps(_get_bus_snapshot(), separators=(',', ':'))
+                yield f'event: buses\ndata: {payload}\n\n'
+        except GeneratorExit:
+            # No DB connection is held while waiting or yielding; closing the
+            # generator releases the request context and exits the stream.
+            raise
+
+    return Response(
+        stream_with_context(event_stream()),
+        mimetype='text/event-stream',
+        headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'},
+    )
 
 @app.route('/api/buses/<int:bus_id>/location', methods=['POST'])
 def update_bus_location(bus_id):
@@ -44,12 +89,33 @@ def update_bus_location(bus_id):
     Update a specific bus's live location and status.
     Expected JSON payload: { lat, lng, speed_mph?, heading?, status?, next_stop_name?, eta_minutes? }
     """
-    data = request.get_json(silent=True) or {}
+    if not request.is_json:
+        return jsonify({'status': 'error', 'error': 'Request body must be JSON'}), 400
+    data = request.get_json(silent=False)
+    if not isinstance(data, dict):
+        return jsonify({'status': 'error', 'error': 'JSON body must be an object'}), 400
     lat = data.get('lat')
     lng = data.get('lng')
 
     if lat is None or lng is None:
-        return jsonify({'error': 'lat and lng are required'}), 400
+        return jsonify({'status': 'error', 'error': 'lat and lng are required'}), 400
+    try:
+        lat, lng = float(lat), float(lng)
+    except (TypeError, ValueError):
+        return jsonify({'status': 'error', 'error': 'lat and lng must be numbers'}), 400
+    if not math.isfinite(lat) or not math.isfinite(lng) or not -90 <= lat <= 90 or not -180 <= lng <= 180:
+        return jsonify({'status': 'error', 'error': 'lat or lng is outside the valid range'}), 400
+    for field in ('speed_mph', 'heading', 'delay_minutes', 'eta_minutes'):
+        if field in data:
+            try:
+                value = float(data[field])
+            except (TypeError, ValueError):
+                return jsonify({'status': 'error', 'error': f'{field} must be a number'}), 400
+            if not math.isfinite(value):
+                return jsonify({'status': 'error', 'error': f'{field} must be finite'}), 400
+    for field in ('status', 'next_stop_name'):
+        if field in data and data[field] is not None and not isinstance(data[field], str):
+            return jsonify({'status': 'error', 'error': f'{field} must be a string'}), 400
 
     conn = get_db()
     cursor = conn.cursor()
@@ -59,7 +125,7 @@ def update_bus_location(bus_id):
     bus = cursor.fetchone()
     if not bus:
         conn.close()
-        return jsonify({'error': 'Bus not found'}), 404
+        return jsonify({'status': 'error', 'error': 'Bus not found'}), 404
 
     now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     speed = data.get('speed_mph', bus['speed_mph'])
@@ -77,6 +143,7 @@ def update_bus_location(bus_id):
     ''', (lat, lng, speed, heading, status, delay_minutes, next_stop_name, eta_minutes, now_str, bus_id))
     conn.commit()
     conn.close()
+    simulation.notify_bus_update()
 
     return jsonify({
         'status': 'success',
@@ -153,6 +220,13 @@ def get_schedules():
 @app.route('/api/notifications', methods=['GET', 'POST'])
 def handle_notifications():
     """GET active delay & alert notifications, or POST a new notification."""
+    if request.method == 'POST':
+        if not request.is_json:
+            return jsonify({'status': 'error', 'error': 'Request body must be JSON'}), 400
+        data = request.get_json(silent=False)
+        if not isinstance(data, dict):
+            return jsonify({'status': 'error', 'error': 'JSON body must be an object'}), 400
+
     conn = get_db()
     cursor = conn.cursor()
 
@@ -173,7 +247,6 @@ def handle_notifications():
         })
 
     # POST: Create a notification
-    data = request.get_json(silent=True) or {}
     title = data.get('title')
     message = data.get('message')
     severity = data.get('severity', 'warning')
@@ -182,7 +255,7 @@ def handle_notifications():
 
     if not title or not message:
         conn.close()
-        return jsonify({'error': 'Title and message are required'}), 400
+        return jsonify({'status': 'error', 'error': 'Title and message are required'}), 400
 
     now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     cursor.execute('''
@@ -205,6 +278,9 @@ def dismiss_notification(alert_id):
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute('UPDATE notifications SET is_active = 0 WHERE id = ?', (alert_id,))
+    if cursor.rowcount == 0:
+        conn.close()
+        return jsonify({'status': 'error', 'error': 'Notification not found'}), 404
     conn.commit()
     conn.close()
     return jsonify({'status': 'success', 'message': f'Notification {alert_id} dismissed'})
@@ -219,12 +295,21 @@ def demo_step():
 @app.route('/api/demo/toggle-delay/<int:bus_id>', methods=['POST'])
 def demo_toggle_delay(bus_id):
     """Toggle delay status on a bus and emit notification."""
-    data = request.get_json(silent=True) or {}
+    if request.data and not request.is_json:
+        return jsonify({'status': 'error', 'error': 'Request body must be JSON'}), 400
+    data = request.get_json(silent=False) if request.is_json else {}
+    data = data or {}
+    if not isinstance(data, dict):
+        return jsonify({'status': 'error', 'error': 'JSON body must be an object'}), 400
     minutes = data.get('minutes', 15)
     reason = data.get('reason', 'Campus Construction & Delivery Traffic')
+    if isinstance(minutes, bool) or not isinstance(minutes, int) or minutes < 0:
+        return jsonify({'status': 'error', 'error': 'minutes must be a non-negative integer'}), 400
+    if not isinstance(reason, str):
+        return jsonify({'status': 'error', 'error': 'reason must be a string'}), 400
     ok, message = simulation.toggle_bus_delay(bus_id, minutes, reason)
     if not ok:
-        return jsonify({'error': message}), 404
+        return jsonify({'status': 'error', 'error': message}), 404
     return jsonify({'status': 'success', 'message': message})
 
 @app.route('/api/demo/toggle-simulation', methods=['POST'])
@@ -247,11 +332,15 @@ def demo_simulation_status():
 def demo_reset():
     """Reset database to initial seed state."""
     init_db(reset=True)
+    simulation.notify_bus_update()
     return jsonify({'status': 'success', 'message': 'Database reset to initial demo state'})
 
 if __name__ == '__main__':
+    host = os.environ.get('CAMPUS_BUS_HOST', '127.0.0.1')
+    port = int(os.environ.get('CAMPUS_BUS_PORT', '5000'))
+    debug = os.environ.get('CAMPUS_BUS_DEBUG', '').lower() in {'1', 'true', 'yes'}
     print("=" * 60)
     print("UniRide Campus Bus Tracker started!")
-    print("Open http://127.0.0.1:5000 in your browser.")
+    print(f"Open http://{host}:{port} in your browser.")
     print("=" * 60)
-    app.run(host='127.0.0.1', port=5000, debug=True)
+    app.run(host=host, port=port, debug=debug)

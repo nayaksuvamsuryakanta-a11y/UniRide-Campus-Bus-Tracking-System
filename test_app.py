@@ -1,14 +1,19 @@
 import unittest
 import json
 from app import app
-from database import init_db
+from database import get_db, init_db
+import simulation
 
 class CampusBusTestCase(unittest.TestCase):
     def setUp(self):
         # Fresh test db state
+        simulation.pause_simulation()
         init_db(reset=True)
         self.client = app.test_client()
         self.client.testing = True
+
+    def tearDown(self):
+        simulation.resume_simulation()
 
     def test_index_page(self):
         """Test index page loads HTML with Leaflet and UI elements."""
@@ -31,6 +36,67 @@ class CampusBusTestCase(unittest.TestCase):
         self.assertIn('current_lng', bus1)
         self.assertIn('bus_number', bus1)
         self.assertIn('route_name', bus1)
+
+    def test_get_buses_empty_list(self):
+        """An empty fleet returns a successful JSON response with count zero."""
+        conn = get_db()
+        conn.execute('DELETE FROM buses')
+        conn.commit()
+        conn.close()
+
+        response = self.client.get('/api/buses')
+        data = response.get_json()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(data['count'], 0)
+        self.assertEqual(data['buses'], [])
+
+    def test_get_buses_with_inactive_or_missing_route(self):
+        """A bus remains serializable when its route is inactive or missing."""
+        conn = get_db()
+        conn.execute('UPDATE buses SET route_id = -1 WHERE id = 1')
+        conn.commit()
+        conn.close()
+
+        response = self.client.get('/api/buses')
+        bus = next(bus for bus in response.get_json()['buses'] if bus['id'] == 1)
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(bus['route_name'])
+        self.assertIsNone(bus['route_color'])
+
+    def test_api_malformed_json_returns_json_400(self):
+        """Malformed JSON request bodies use a JSON 400 response."""
+        response = self.client.post(
+            '/api/buses/1/location', data='{', content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.mimetype, 'application/json')
+        self.assertEqual(response.get_json()['status'], 'error')
+
+    def test_buses_endpoint_works_before_simulation_starts(self):
+        """Reading buses does not depend on the background worker being started."""
+        response = self.client.get('/api/buses')
+        self.assertEqual(response.status_code, 200)
+        self.assertGreater(response.get_json()['count'], 0)
+
+    def test_unknown_api_path_returns_json_404(self):
+        response = self.client.get('/api/not-a-route')
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.mimetype, 'application/json')
+
+    def test_bus_stream_sends_snapshots_and_closes(self):
+        """The SSE endpoint sends an initial snapshot and later updates."""
+        response = self.client.get('/api/buses/stream', buffered=False)
+        try:
+            initial = next(response.response).decode('utf-8')
+            self.assertIn('event: buses', initial)
+            self.assertIn('"buses"', initial)
+
+            simulation.notify_bus_update()
+            update = next(response.response).decode('utf-8')
+            self.assertIn('event: buses', update)
+            self.assertIn('"timestamp"', update)
+        finally:
+            response.close()
 
     def test_update_bus_location(self):
         """Test POST /api/buses/<id>/location manually updates GPS location."""
