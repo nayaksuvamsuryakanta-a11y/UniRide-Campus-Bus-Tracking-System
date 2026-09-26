@@ -183,6 +183,12 @@ const App = (() => {
     return `${parts[0]} ${parts[parts.length - 1][0]}.`;
   }
 
+  function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, character => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#x27;'
+    })[character]);
+  }
+
   // Notification strings are escaped before storage; decode those known
   // entities and escape again for HTML so viewers see literal text safely.
   function escapeNotificationText(value) {
@@ -192,9 +198,7 @@ const App = (() => {
       .replace(/&quot;/g, '"')
       .replace(/&#x27;/g, "'")
       .replace(/&amp;/g, '&');
-    return text.replace(/[&<>"']/g, character => ({
-      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#x27;'
-    })[character]);
+    return escapeHtml(text);
   }
 
   /**
@@ -790,11 +794,13 @@ const App = (() => {
       const lng = bus.current_lng;
       const isDelayed = bus.delay_minutes > 0;
       const heading = bus.heading || 0;
+      const routeColor = escapeHtml(bus.route_color);
+      const busNumber = escapeHtml(bus.bus_number);
 
       const markerHtml = `
         <div class="bus-marker-container ${isDelayed ? 'delayed' : ''}">
-          <div class="bus-marker-icon" style="border-color: ${bus.route_color}; transform: rotate(${heading}deg);">
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="${bus.route_color}" stroke-width="2.2" style="transform: rotate(-${heading}deg);">
+          <div class="bus-marker-icon" style="border-color: ${routeColor}; transform: rotate(${heading}deg);">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="${routeColor}" stroke-width="2.2" style="transform: rotate(-${heading}deg);">
               <rect x="4" y="3" width="16" height="15" rx="3"/>
               <line x1="4" y1="9" x2="20" y2="9"/>
               <circle cx="8" cy="14" r="1.5"/>
@@ -802,7 +808,7 @@ const App = (() => {
               <path d="M6 18v2m12-2v2" stroke-linecap="round"/>
             </svg>
           </div>
-          <span class="bus-marker-badge">${bus.bus_number}</span>
+          <span class="bus-marker-badge">${busNumber}</span>
         </div>
       `;
 
@@ -835,21 +841,27 @@ const App = (() => {
    */
   function buildBusPopupContent(bus) {
     const isDelayed = bus.delay_minutes > 0;
+    const busNumber = escapeHtml(bus.bus_number);
+    const status = escapeHtml(localizedStatus(bus.status, isDelayed, bus.delay_minutes));
+    const routeColor = escapeHtml(bus.route_color);
+    const routeName = escapeHtml(localizedName(bus.route_name));
+    const driverName = escapeHtml(formatDriverName(bus.driver_name));
+    const nextStopName = escapeHtml(localizedName(bus.next_stop_name) || t('inTransit'));
     return `
       <div class="custom-popup">
         <div class="popup-header">
-          <span class="popup-title">${bus.bus_number}</span>
+          <span class="popup-title">${busNumber}</span>
           <span class="status-badge ${isDelayed ? 'delayed' : 'on-time'}">
-            ${localizedStatus(bus.status, isDelayed, bus.delay_minutes)}
+            ${status}
           </span>
         </div>
         <div class="popup-row">
           <span class="popup-label">${t('route')}:</span>
-          <span class="popup-val" style="color:${bus.route_color}">${localizedName(bus.route_name)}</span>
+          <span class="popup-val" style="color:${routeColor}">${routeName}</span>
         </div>
         <div class="popup-row">
           <span class="popup-label">${t('driver')}:</span>
-          <span class="popup-val">${formatDriverName(bus.driver_name)}</span>
+          <span class="popup-val">${driverName}</span>
         </div>
         <div class="popup-row">
           <span class="popup-label">${t('speed')}:</span>
@@ -857,7 +869,7 @@ const App = (() => {
         </div>
         <div class="popup-row">
           <span class="popup-label">${t('nextStop')}:</span>
-          <span class="popup-val">${localizedName(bus.next_stop_name) || t('inTransit')}</span>
+          <span class="popup-val">${nextStopName}</span>
         </div>
         <div class="popup-row">
           <span class="popup-label">${t('eta')}:</span>
@@ -894,6 +906,16 @@ const App = (() => {
     container.innerHTML = state.buses.map(bus => {
       const isDelayed = bus.delay_minutes > 0;
       const isSelected = state.selectedBusId === bus.id;
+      const busNumber = escapeHtml(bus.bus_number);
+      const routeCode = escapeHtml(bus.route_code);
+      const routeColor = escapeHtml(bus.route_color);
+      const status = escapeHtml(localizedStatus(bus.status, isDelayed, bus.delay_minutes));
+      const nextStop = localizedName(bus.next_stop_name);
+      const nextStopName = escapeHtml(nextStop || t('enRoute'));
+      const truncatedNextStop = escapeHtml(nextStop
+        ? (nextStop.length > 18 ? `${nextStop.substring(0, 18)}...` : nextStop)
+        : t('inTransit'));
+      const driverName = escapeHtml(formatDriverName(bus.driver_name));
       
       // Capacity color
       let capColor = '#10b981';
@@ -903,26 +925,26 @@ const App = (() => {
       return `
         <div class="bus-card ${isDelayed ? 'delayed' : ''} ${isSelected ? 'active-selected' : ''}" 
              data-bus-id="${bus.id}"
-             data-route-code="${bus.route_code}"
-             style="border-left-color: ${bus.route_color};"
+             data-route-code="${routeCode}"
+             style="border-left-color: ${routeColor};"
              onclick="App.selectBus(${bus.id}, true)">
           
           <div class="bus-card-top">
             <div class="bus-identity">
-              <span class="bus-number-badge">${bus.bus_number}</span>
-              <span class="bus-route-tag" style="background-color: ${bus.route_color}">${bus.route_code}</span>
+              <span class="bus-number-badge">${busNumber}</span>
+              <span class="bus-route-tag" style="background-color: ${routeColor}">${routeCode}</span>
             </div>
             <span class="status-badge ${isDelayed ? 'delayed' : 'on-time'}">
               ${isDelayed ? ICONS.alert : ICONS.check}
-              ${localizedStatus(bus.status, isDelayed, bus.delay_minutes)}
+              ${status}
             </span>
           </div>
 
           <div class="bus-details-grid">
             <div class="detail-item">
               <span class="detail-label">${t('nextStop')}</span>
-              <span class="detail-value" title="${localizedName(bus.next_stop_name) || t('enRoute')}">
-                ${bus.next_stop_name ? (localizedName(bus.next_stop_name).length > 18 ? localizedName(bus.next_stop_name).substring(0, 18) + '...' : localizedName(bus.next_stop_name)) : t('inTransit')}
+              <span class="detail-value" title="${nextStopName}">
+                ${truncatedNextStop}
               </span>
             </div>
             <div class="detail-item">
@@ -942,7 +964,7 @@ const App = (() => {
             <div class="detail-item">
               <span class="detail-label">${t('driver')}</span>
               <span class="detail-value">
-                ${formatDriverName(bus.driver_name)}
+                ${driverName}
               </span>
             </div>
           </div>
@@ -1085,7 +1107,7 @@ const App = (() => {
             <div class="notif-text-wrap">
               <div class="notif-title-row">
                 <span class="notif-title">${escapeNotificationText(title)}</span>
-                ${notif.route_name ? `<span class="brand-badge" style="background:#fef08a; color:#854d0e;">${localizedName(notif.route_name)}</span>` : ''}
+                ${notif.route_name ? `<span class="brand-badge" style="background:#fef08a; color:#854d0e;">${escapeHtml(localizedName(notif.route_name))}</span>` : ''}
               </div>
               <span class="notif-msg">${escapeNotificationText(message)}</span>
             </div>
@@ -1110,10 +1132,17 @@ const App = (() => {
    */
   async function dismissNotification(alertId) {
     try {
-      await fetch(`/api/notifications/${alertId}/dismiss`, { method: 'POST' });
+      const response = await postAdminAction(`/api/notifications/${alertId}/dismiss`);
+      if (!response) {
+        showDemoToast('Admin token required to dismiss this notification.', true);
+        return;
+      }
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Unable to dismiss notification.');
       await fetchNotifications();
     } catch (err) {
       console.error('Error dismissing notification:', err);
+      showDemoToast(err.message || 'Unable to dismiss notification.', true);
     }
   }
 

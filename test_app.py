@@ -251,6 +251,64 @@ class CampusBusTestCase(unittest.TestCase):
         self.assertIn('escapeNotificationText(title)', js)
         self.assertIn('escapeNotificationText(message)', js)
 
+    def test_gps_telemetry_html_round_trips_raw_and_is_escaped_in_renderers(self):
+        payload = '<img src=x onerror=alert(1)>'
+        bus = next(bus for bus in self.client.get('/api/buses').get_json()['buses'] if bus['id'] == 1)
+        location = {
+            'lat': bus['current_lat'], 'lng': bus['current_lng'],
+            'status': payload, 'next_stop_name': payload,
+        }
+        with patch.dict(os.environ, {'GPS_UPDATE_TOKEN': 'test-gps-token'}):
+            update = self.client.post(
+                '/api/buses/1/location', json=location,
+                headers={'X-Update-Token': 'test-gps-token'},
+            )
+        self.assertEqual(update.status_code, 200)
+        updated_bus = next(
+            item for item in self.client.get('/api/buses').get_json()['buses'] if item['id'] == 1
+        )
+        self.assertEqual(updated_bus['status'], payload)
+        self.assertEqual(updated_bus['next_stop_name'], payload)
+
+        conn = get_db()
+        route_id = conn.execute('SELECT route_id FROM buses WHERE id = 1').fetchone()['route_id']
+        conn.execute(
+            '''INSERT INTO notifications
+               (bus_id, route_id, title, message, severity, is_active, created_at)
+               VALUES (?, ?, ?, ?, 'warning', 1, '2026-01-01 00:00:00')''',
+            (1, route_id, payload, payload),
+        )
+        conn.commit()
+        conn.close()
+        notifications = self.client.get('/api/notifications').get_json()['notifications']
+        raw_notification = next(item for item in notifications if item['title'] == payload)
+        self.assertEqual(raw_notification['message'], payload)
+
+        with open('static/js/app.js', encoding='utf-8') as js_file:
+            js = js_file.read()
+        popup = js[js.index('function buildBusPopupContent'):js.index('function renderBusList')]
+        cards = js[js.index('function renderBusList'):js.index('function updateMobilePeekCard')]
+        markers = js[js.index('function updateBusMarkers'):js.index('function buildBusPopupContent')]
+        delay_notifications = js[js.index('function renderNotifications'):js.index('function dismissNotification')]
+        self.assertIn('escapeHtml(localizedStatus(bus.status', popup)
+        self.assertIn('escapeHtml(localizedName(bus.next_stop_name)', popup)
+        self.assertIn('escapeHtml(localizedStatus(bus.status', cards)
+        self.assertIn('escapeHtml(nextStop', cards)
+        self.assertIn('escapeHtml(bus.bus_number)', markers)
+        self.assertIn('escapeHtml(bus.route_color)', markers)
+        self.assertIn("stop: localizedName(bus.next_stop_name)", delay_notifications)
+        self.assertIn('escapeNotificationText(message)', delay_notifications)
+        self.assertIn("document.querySelectorAll('.bus-card')", js[js.index('function updateMobilePeekCard'):])
+
+    def test_dismiss_notification_uses_admin_action_and_surfaces_errors(self):
+        with open('static/js/app.js', encoding='utf-8') as js_file:
+            js = js_file.read()
+        dismiss = js[js.index('async function dismissNotification'):js.index('function fetchSchedules')]
+        self.assertIn('postAdminAction(`/api/notifications/${alertId}/dismiss`)', dismiss)
+        self.assertIn('if (!response.ok)', dismiss)
+        self.assertIn('showDemoToast', dismiss)
+        self.assertIn('await fetchNotifications()', dismiss)
+
     def test_notification_rejects_nonexistent_bus_id(self):
         with patch.dict(os.environ, {'ADMIN_TOKEN': 'test-admin-token'}):
             response = self.client.post('/api/notifications', json={
