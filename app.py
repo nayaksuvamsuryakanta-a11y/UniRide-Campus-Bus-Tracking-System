@@ -3,6 +3,7 @@ import json
 import math
 import logging
 import hmac
+import secrets
 from datetime import datetime
 from flask import Flask, Response, render_template, jsonify, request, stream_with_context
 from flask_limiter import Limiter
@@ -15,6 +16,12 @@ from logging_config import configure_logging
 
 configure_logging()
 logger = logging.getLogger(__name__)
+_GENERATED_GPS_UPDATE_TOKEN = secrets.token_urlsafe(32)
+if not os.environ.get('GPS_UPDATE_TOKEN') and (
+    os.environ.get('CAMPUS_BUS_ENV', '').lower() == 'production'
+    or os.environ.get('FLASK_ENV', '').lower() == 'production'
+):
+    logger.warning('GPS_UPDATE_TOKEN is not configured in production; a process-local random token was generated. Configure GPS_UPDATE_TOKEN for GPS clients.')
 app = Flask(__name__)
 limiter = Limiter(
     get_remote_address,
@@ -127,6 +134,12 @@ def update_bus_location(bus_id):
     Update a specific bus's live location and status.
     Expected JSON payload: { lat, lng, speed_mph?, heading?, status?, next_stop_name?, eta_minutes? }
     """
+    expected_token = os.environ.get('GPS_UPDATE_TOKEN') or _GENERATED_GPS_UPDATE_TOKEN
+    supplied_token = request.headers.get('X-Update-Token', '')
+    if not hmac.compare_digest(supplied_token, expected_token):
+        logger.warning('Rejected GPS update for bus %s from %s: invalid or missing update token', bus_id, request.remote_addr)
+        return jsonify({'status': 'error', 'error': 'A valid update token is required'}), 401
+
     if not request.is_json:
         return jsonify({'status': 'error', 'error': 'Request body must be JSON'}), 400
     data = request.get_json(silent=False)
@@ -141,8 +154,11 @@ def update_bus_location(bus_id):
         lat, lng = float(lat), float(lng)
     except (TypeError, ValueError):
         return jsonify({'status': 'error', 'error': 'lat and lng must be numbers'}), 400
-    if not math.isfinite(lat) or not math.isfinite(lng) or not -90 <= lat <= 90 or not -180 <= lng <= 180:
-        return jsonify({'status': 'error', 'error': 'lat or lng is outside the valid range'}), 400
+    if not math.isfinite(lat) or not math.isfinite(lng):
+        return jsonify({'status': 'error', 'error': 'lat and lng must be finite numbers'}), 400
+    if not 23.7 <= lat <= 24.0 or not 78.6 <= lng <= 78.9:
+        logger.warning('Rejected GPS update for bus %s from %s: coordinates outside Sagar bounds (lat=%s, lng=%s)', bus_id, request.remote_addr, lat, lng)
+        return jsonify({'status': 'error', 'error': 'Coordinates are outside the Sagar campus service area'}), 400
     for field in ('speed_mph', 'heading', 'delay_minutes', 'eta_minutes'):
         if field in data:
             try:
@@ -164,6 +180,30 @@ def update_bus_location(bus_id):
     if not bus:
         conn.close()
         return jsonify({'status': 'error', 'error': 'Bus not found'}), 404
+
+    # Enforce a physically plausible movement ceiling (80 km/h). The stored
+    # timestamp has second precision, so allow two seconds of rounding grace.
+    try:
+        previous_time = datetime.strptime(bus['updated_at'], '%Y-%m-%d %H:%M:%S')
+        elapsed_seconds = max(0.0, (datetime.now() - previous_time).total_seconds()) + 2.0
+        previous_lat, previous_lng = float(bus['current_lat']), float(bus['current_lng'])
+        earth_radius_km = 6371.0
+        lat1, lat2 = math.radians(previous_lat), math.radians(lat)
+        delta_lat = math.radians(lat - previous_lat)
+        delta_lng = math.radians(lng - previous_lng)
+        haversine = math.sin(delta_lat / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(delta_lng / 2) ** 2
+        distance_km = 2 * earth_radius_km * math.asin(math.sqrt(min(1.0, haversine)))
+        max_distance_km = 80.0 * elapsed_seconds / 3600.0
+        if distance_km > max_distance_km:
+            conn.close()
+            logger.warning('Rejected GPS update for bus %s from %s: implausible jump %.3f km in %.1f seconds', bus_id, request.remote_addr, distance_km, elapsed_seconds)
+            return jsonify({'status': 'error', 'error': 'Location jump exceeds the maximum plausible speed of 80 km/h'}), 400
+    except (TypeError, ValueError):
+        # Seeded and simulated buses always have valid timestamps and positions;
+        # reject malformed stored state rather than accepting an unchecked jump.
+        conn.close()
+        logger.error('Rejected GPS update for bus %s from %s: unable to validate last known position', bus_id, request.remote_addr)
+        return jsonify({'status': 'error', 'error': 'Unable to validate the bus\'s last known position'}), 400
 
     now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     speed = data.get('speed_mph', bus['speed_mph'])

@@ -9,7 +9,8 @@ COPY . .
 
 ENV CAMPUS_BUS_HOST=0.0.0.0 \
     CAMPUS_BUS_PORT=5000 \
-    CAMPUS_BUS_DB=/data/campus_bus.db
+    CAMPUS_BUS_DB=/data/campus_bus.db \
+    CAMPUS_BUS_ENV=production
 RUN mkdir -p /data
 VOLUME ["/data"]
 

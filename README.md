@@ -18,7 +18,7 @@ A full-stack campus transit tracking web application for **Dr. Harisingh Gour Vi
 2. **Live Location Updates (3s Headway)**:
    - Automated background simulation engine moves buses along road waypoints.
    - Frontend asynchronously polls `/api/buses` every 3 seconds to smoothly interpolate bus markers.
-   - Supports manual GPS telemetry push via `POST /api/buses/<id>/location`.
+   - Supports authenticated GPS telemetry push via `POST /api/buses/<id>/location` using the `X-Update-Token` header.
 
 3. **Delay Notifications Banner**:
    - High-visibility banner across the top of the interface.
@@ -112,7 +112,7 @@ py test_app.py
 
 ### 1. Buses
 - `GET /api/buses`: Returns all active buses with current coordinates, heading, speed, next stop, and route information.
-- `POST /api/buses/<id>/location`: Pushes a live location update for a bus.
+- `POST /api/buses/<id>/location`: Pushes a live location update for a bus. Requires the `X-Update-Token` header to match `GPS_UPDATE_TOKEN`. Coordinates must be in the Sagar service area (latitude 23.7–24.0, longitude 78.6–78.9) and movement is checked against an 80 km/h ceiling.
   ```json
   {
     "lat": 23.8290,
@@ -122,6 +122,9 @@ py test_app.py
     "status": "On Time"
   }
   ```
+
+### GPS update token configuration
+Set `GPS_UPDATE_TOKEN` in the environment where the Flask/Gunicorn process runs, and configure the same secret on the trusted GPS client as its `X-Update-Token` header. For example, set it in your deployment platform's environment variables or in the shell before starting the app (`$env:GPS_UPDATE_TOKEN = 'your-long-random-secret'` in PowerShell). If it is unset, the server generates a random process-local token; production mode (`CAMPUS_BUS_ENV=production` or `FLASK_ENV=production`) logs a warning, and GPS clients cannot authenticate reliably until the variable is configured. The in-process simulation writes directly to SQLite and does not call this endpoint.
 
 ### 2. Routes & Stops
 - `GET /api/routes`: Returns all campus routes, ordered stops, and waypoints for polyline drawing.

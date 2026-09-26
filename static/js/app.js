@@ -23,7 +23,138 @@ const App = (() => {
     sseConnectionTimer: null,
     pollInterval: 3000,    // 3 seconds
     mobileSheetExpanded: false,
+    language: localStorage.getItem('unirideLanguage') === 'hi' ? 'hi' : 'en',
+    hasBusSnapshot: false,
+    connectionMode: 'connecting',
   };
+
+  const TRANSLATIONS = {
+    brandSubtitle: { en: 'Real-Time GPS Bus Tracker & Schedule', hi: 'बसों की लाइव GPS जानकारी और समय सारणी' },
+    liveFeed: { en: 'LIVE FEED (3s)', hi: 'लाइव अपडेट (3 सेकंड)' }, connectedLive: { en: 'Live connection', hi: 'लाइव कनेक्शन' }, pollingConnection: { en: 'Polling for updates', hi: 'अपडेट जाँचे जा रहे हैं' },
+    pauseEngine: { en: 'Pause Engine', hi: 'सिमुलेशन रोकें' }, resumeEngine: { en: 'Resume Engine', hi: 'सिमुलेशन चलाएँ' }, simPaused: { en: 'SIM PAUSED', hi: 'सिमुलेशन रुका है' }, pauseSimulation: { en: 'Pause simulation', hi: 'सिमुलेशन रोकें' }, resumeSimulation: { en: 'Resume simulation', hi: 'सिमुलेशन चलाएँ' },
+    bus: { en: 'Bus', hi: 'बस' }, busesActive: { en: 'Buses Active', hi: 'सक्रिय बसें' }, campusRoutes: { en: 'Campus Routes', hi: 'कैंपस मार्ग' }, activeDelays: { en: 'Active Delays', hi: 'वर्तमान देरी' },
+    pauseSim: { en: 'Pause Sim', hi: 'सिमुलेशन रोकें' }, resumeSim: { en: 'Resume Sim', hi: 'सिमुलेशन चलाएँ' }, demoControls: { en: 'Demo Controls', hi: 'डेमो नियंत्रण' },
+    searchRoutesStops: { en: 'Search routes or stops', hi: 'मार्ग या स्टॉप खोजें' }, liveFleet: { en: 'Live fleet', hi: 'लाइव बसें' }, schedules: { en: 'Schedules', hi: 'समय सारणी' }, demoGuide: { en: 'Demo Guide', hi: 'डेमो मार्गदर्शिका' },
+    all: { en: 'All', hi: 'सभी' }, express: { en: 'Express', hi: 'एक्सप्रेस' }, tech: { en: 'Tech', hi: 'विज्ञान' }, residences: { en: 'Residences', hi: 'आवास' }, filter: { en: 'Filter:', hi: 'फ़िल्टर:' },
+    connectingTelemetry: { en: 'Connecting to DHSGSU bus telemetry...', hi: 'DHSGSU बस जानकारी से जुड़ रहे हैं...' }, selectRoute: { en: 'Select Route:', hi: 'मार्ग चुनें:' }, allCampusRoutes: { en: 'All DHSGSU Campus Routes', hi: 'DHSGSU के सभी कैंपस मार्ग' },
+    busRoute: { en: 'Bus / Route', hi: 'बस / मार्ग' }, stop: { en: 'Stop', hi: 'स्टॉप' }, scheduled: { en: 'Scheduled', hi: 'निर्धारित समय' }, estimatedArrival: { en: 'Est. Arrival', hi: 'अनुमानित आगमन' }, status: { en: 'Status', hi: 'स्थिति' },
+    presentationScript: { en: '5-10 Minute Presentation Script', hi: '5–10 मिनट की प्रस्तुति रूपरेखा' }, interactiveGuide: { en: 'Interactive guide to demo the Dr. Harisingh Gour Vishwavidyalaya transit tracker.', hi: 'डॉ. हरिसिंह गौर विश्वविद्यालय के बस ट्रैकर का प्रदर्शन करने की मार्गदर्शिका।' },
+    systemOverview: { en: '1. System Overview (1 min):', hi: '1. सिस्टम परिचय (1 मिनट):' }, systemOverviewText: { en: 'Flask REST API + SQLite spatial waypoints for DHSGSU Sagar campus on Patharia Hills + Leaflet.js real-time frontend.', hi: 'पठारिया पहाड़ियों पर स्थित DHSGSU सागर कैंपस के लिए Flask REST API, SQLite मार्ग-बिंदु और Leaflet.js लाइव इंटरफ़ेस।' },
+    trackingTelemetry: { en: '2. Real-Time Tracking & Telemetry (2 mins):', hi: '2. लाइव ट्रैकिंग और बस जानकारी (2 मिनट):' }, trackingText: { en: 'Show buses traveling along University Road, Central Library, Science Complex, and Hostels. Click any bus to inspect speed, driver, and passenger load.', hi: 'विश्वविद्यालय मार्ग, केंद्रीय पुस्तकालय, विज्ञान परिसर और छात्रावासों से गुजरती बसें दिखाएँ। गति, चालक और यात्रियों की संख्या देखने के लिए बस चुनें।' },
+    delaySimulation: { en: '3. Delay Simulation & Notification Banner (3 mins):', hi: '3. देरी का प्रदर्शन और सूचना (3 मिनट):' }, delayText: { en: 'Simulate a delay on Bus 101 to demonstrate the immediate delay banner, map beacon, and timetable adjustment:', hi: 'बस 101 में देरी दिखाकर सूचना-पट्टी, मानचित्र संकेत और समय सारणी में बदलाव प्रदर्शित करें:' },
+    simulateDelayBus: { en: 'Simulate Delay (Bus 101)', hi: 'बस 101 में देरी दिखाएँ' }, resolveDelay: { en: 'Resolve Delay', hi: 'देरी हटाएँ' }, locationUpdates: { en: '4. Live REST API Location Updates (2 mins):', hi: '4. लाइव REST API स्थान अपडेट (2 मिनट):' }, stepText: { en: 'Step simulation forward to show asynchronous GPS telemetry updates:', hi: 'GPS अपडेट दिखाने के लिए सिमुलेशन को एक कदम आगे बढ़ाएँ:' }, stepGps: { en: 'Step GPS Ping (1 tick)', hi: 'GPS अपडेट आगे बढ़ाएँ (1 चरण)' },
+    centralExpress: { en: 'Campus Central Express', hi: 'कैंपस सेंट्रल एक्सप्रेस' }, scienceHealth: { en: 'Science & Health', hi: 'विज्ञान और स्वास्थ्य' }, hostelsSports: { en: 'Hostels & Sports', hi: 'छात्रावास और खेल' }, campusTransitSystem: { en: 'Dr. Harisingh Gour Vishwavidyalaya Campus Transit System', hi: 'डॉ. हरिसिंह गौर विश्वविद्यालय कैंपस बस सेवा' },
+    connectingLive: { en: 'Connecting to live feed...', hi: 'लाइव फ़ीड से जुड़ रहे हैं...' }, presentationControls: { en: 'Presentation controls', hi: 'प्रस्तुति नियंत्रण' }, busToDelay: { en: 'Bus to delay', hi: 'देरी के लिए बस चुनें' }, triggerDelay15: { en: 'Trigger Delay (+15 min)', hi: 'देरी शुरू करें (+15 मिनट)' }, clearAllDelays: { en: 'Clear All Delays', hi: 'सभी देरी हटाएँ' }, resetDemo: { en: 'Reset Demo', hi: 'डेमो रीसेट करें' },
+    fleet: { en: 'Fleet', hi: 'बसें' }, demo: { en: 'Demo', hi: 'डेमो' }, buses: { en: 'buses', hi: 'बसें' }, routes: { en: 'routes', hi: 'मार्ग' }, delays: { en: 'delays', hi: 'देरी' },
+    centerMap: { en: 'Center on Map', hi: 'मानचित्र पर दिखाएँ' }, clearDelay: { en: 'Clear Delay', hi: 'देरी हटाएँ' }, simulateDelay: { en: 'Simulate Delay', hi: 'देरी दिखाएँ' },
+    nextStop: { en: 'Next Stop', hi: 'अगला स्टॉप' }, etaToStop: { en: 'ETA to Stop', hi: 'स्टॉप तक अनुमानित समय' }, speed: { en: 'Speed', hi: 'गति' }, driver: { en: 'Driver', hi: 'चालक' }, passengerOccupancy: { en: 'Passenger Occupancy', hi: 'यात्री क्षमता' }, route: { en: 'Route', hi: 'मार्ग' }, inTransit: { en: 'In Transit', hi: 'रास्ते में' }, enRoute: { en: 'En route', hi: 'रास्ते में' }, mins: { en: 'mins', hi: 'मिनट' }, full: { en: 'Full', hi: 'भरा हुआ' }, occupancy: { en: 'Occupancy', hi: 'यात्री क्षमता' },
+    stopSequence: { en: 'Stop Sequence', hi: 'स्टॉप क्रम' }, stopNumber: { en: 'Stop #', hi: 'स्टॉप #' }, frequencyEvery: { en: 'Frequency: Every {minutes} mins', hi: 'आवृत्ति: हर {minutes} मिनट' }, noActiveBuses: { en: 'No active buses in service.', hi: 'अभी कोई बस सेवा में नहीं है।' },
+    allNormal: { en: 'All Transit Systems Normal', hi: 'बस सेवा सामान्य है' }, normalMessage: { en: 'All DHSGSU campus transit routes are operating on scheduled timetable. No active delays.', hi: 'DHSGSU कैंपस के सभी बस मार्ग निर्धारित समय पर चल रहे हैं। अभी कोई देरी नहीं है।' }, focusBus: { en: 'Focus on Bus', hi: 'बस पर जाएँ' }, dismissAlert: { en: 'Dismiss Alert', hi: 'सूचना हटाएँ' },
+    noSchedules: { en: 'No schedule records found.', hi: 'समय सारणी की जानकारी उपलब्ध नहीं है।' }, campusBus: { en: 'Campus bus', hi: 'कैंपस बस' }, campusRoute: { en: 'Campus route', hi: 'कैंपस मार्ग' }, eta: { en: 'ETA', hi: 'अनुमानित समय' },
+    mapCampusTitle: { en: 'Center map on DHSGSU campus', hi: 'मानचित्र पर DHSGSU कैंपस दिखाएँ' }, toggleStops: { en: 'Toggle Bus Stops visibility', hi: 'बस स्टॉप दिखाएँ या छिपाएँ' }, serviceSummary: { en: 'Service summary', hi: 'सेवा सारांश' }, mapSearchLabel: { en: 'Route and stop search', hi: 'मार्ग और स्टॉप खोजें' },
+    liveTelemetry: { en: 'Live Telemetry', hi: 'लाइव जानकारी' }, updatedJustNow: { en: 'Updated just now', hi: 'अभी अपडेट किया गया' }, pollingInterval: { en: 'Polling Interval: 3000ms', hi: 'अपडेट अंतराल: 3000ms' },
+    delayOnBusTitle: { en: 'Delay on Bus {bus}', hi: 'बस {bus} में देरी' }, delayOnBusMessage: { en: 'Bus {bus} is delayed by about {minutes} minutes near {stop}.', hi: 'बस {bus} को {stop} के पास लगभग {minutes} मिनट की देरी हो रही है।' },
+    demoController: { en: 'DHSGSU Sagar Demo Controller', hi: 'DHSGSU सागर डेमो नियंत्रण' }, demoModalDescription: { en: 'Control live simulation, trigger delay alerts, and test REST endpoints', hi: 'लाइव सिमुलेशन नियंत्रित करें, देरी सूचनाएँ दिखाएँ और REST endpoints जाँचें' },
+    delayNotificationSection: { en: '1. Delay & Notification Simulation', hi: '1. देरी और सूचना का प्रदर्शन' }, delaySectionDesc: { en: 'Instantly toggle delays to showcase the dynamic notification banner and schedule synchronization:', hi: 'सूचना-पट्टी और समय सारणी में बदलाव दिखाने के लिए बस में देरी शुरू या समाप्त करें:' }, delayBus101: { en: 'Delay Bus 101 (+15 min)', hi: 'बस 101 में देरी (+15 मिनट)' }, delayBus201: { en: 'Delay Bus 201 (+20 min)', hi: 'बस 201 में देरी (+20 मिनट)' },
+    manualGpsSection: { en: '2. Manual GPS Telemetry Push', hi: '2. GPS जानकारी मैन्युअल भेजें' }, manualGpsDesc: { en: 'Demonstrates the POST /api/buses/:id/location backend endpoint:', hi: 'POST /api/buses/:id/location endpoint का प्रदर्शन:' }, forwardGps: { en: 'Forward GPS Step (All Buses)', hi: 'सभी बसों का GPS एक कदम आगे बढ़ाएँ' }, customGps: { en: 'Push Custom GPS Coordinates', hi: 'कस्टम GPS निर्देशांक भेजें' },
+    simState: { en: '3. Simulation Engine & State', hi: '3. सिमुलेशन नियंत्रण और स्थिति' }, pauseResumeEngine: { en: 'Pause / Resume Engine', hi: 'सिमुलेशन रोकें / चलाएँ' }, resetDefault: { en: 'Reset Everything to Default', hi: 'सब कुछ शुरुआती स्थिति में लाएँ' }, keepBannerTip: { en: 'Tip: Keep the notification banner visible during your demo to show real-time synchronization.', hi: 'सुझाव: लाइव बदलाव दिखाने के लिए प्रदर्शन के दौरान सूचना-पट्टी खुली रखें।' }, closeControls: { en: 'Close Controls', hi: 'नियंत्रण बंद करें' },
+    backendEndpoint: { en: 'backend endpoint:', hi: 'बैकएंड endpoint:' }, close: { en: 'Close', hi: 'बंद करें' }, languageToggle: { en: 'Switch language to Hindi', hi: 'भाषा English में बदलें' },
+    collapseSheet: { en: 'Collapse bus and schedule sheet', hi: 'बस और समय सारणी पैनल समेटें' }, expandSheet: { en: 'Expand bus and schedule sheet', hi: 'बस और समय सारणी पैनल खोलें' },
+    mapFiltersSummary: { en: 'Map filters and service summary', hi: 'मानचित्र फ़िल्टर और सेवा सारांश' }, routeFilter: { en: 'Filter buses by route', hi: 'मार्ग के अनुसार बसें छाँटें' }, mainNavigation: { en: 'Main navigation', hi: 'मुख्य नेविगेशन' }, openDemoControls: { en: 'Open demo controls', hi: 'डेमो नियंत्रण खोलें' }, demoDialog: { en: 'Demo controls', hi: 'डेमो नियंत्रण' },
+    pageTitle: { en: 'UniRide — Dr. Harisingh Gour Vishwavidyalaya Transit Tracker', hi: 'UniRide — डॉ. हरिसिंह गौर विश्वविद्यालय बस ट्रैकर' }, mapUnavailable: { en: 'Interactive map could not load. Bus details remain available in the fleet list.', hi: 'इंटरैक्टिव मानचित्र लोड नहीं हो सका। बसों की जानकारी सूची में उपलब्ध है।' },
+    unableDelay: { en: 'Unable to trigger delay.', hi: 'देरी शुरू नहीं की जा सकी।' }, unableClearDelays: { en: 'Unable to clear delays.', hi: 'देरी हटाई नहीं जा सकी।' }, unableReset: { en: 'Unable to reset the demo.', hi: 'डेमो रीसेट नहीं किया जा सका।' },
+    adminPrompt: { en: 'Enter the admin token to simulate or clear a delay:', hi: 'देरी शुरू करने या हटाने के लिए एडमिन टोकन दर्ज करें:' }, adminRejected: { en: 'The admin token was not accepted. Please try again.', hi: 'एडमिन टोकन स्वीकार नहीं हुआ। कृपया फिर से प्रयास करें।' },
+    gpsPushed: { en: 'Pushed GPS Telemetry to Backend!', hi: 'GPS जानकारी बैकएंड को भेज दी गई!' }, newCoordinates: { en: 'New Coordinates', hi: 'नए निर्देशांक' }, resetBaseline: { en: 'Reset all buses, schedules, and alerts back to baseline demo state?', hi: 'क्या सभी बसों, समय सारणी और सूचनाओं को शुरुआती डेमो स्थिति में रीसेट करें?' }, demoResetSuccess: { en: 'Demo database reset successfully.', hi: 'डेमो डेटा सफलतापूर्वक रीसेट हुआ।' },
+    noBusAvailable: { en: 'No bus is available to delay.', hi: 'देरी के लिए कोई बस उपलब्ध नहीं है।' }, busAlreadyDelayed: { en: 'Bus {bus} already has an active delay. Use Clear All Delays to resolve it.', hi: 'बस {bus} में पहले से देरी है। इसे हटाने के लिए “सभी देरी हटाएँ” चुनें।' }, delayTriggered: { en: 'Delay triggered on Bus {bus}.', hi: 'बस {bus} में देरी शुरू की गई।' }, noDelaysToClear: { en: 'There are no active delays to clear.', hi: 'हटाने के लिए कोई सक्रिय देरी नहीं है।' }, delaysCleared: { en: 'Cleared delays on {count} {busWord}.', hi: '{count} {busWord} से देरी हटा दी गई।' }, oneBus: { en: 'bus', hi: 'बस' }, manyBuses: { en: 'buses', hi: 'बसों' }, confirmReset: { en: 'Are you sure? This resets buses, schedules, and alerts to the demo starting state.', hi: 'क्या आप निश्चित हैं? इससे बसें, समय सारणी और सूचनाएँ शुरुआती स्थिति में लौट जाएँगी।' }, resetComplete: { en: 'Demo reset complete.', hi: 'डेमो रीसेट हो गया।' },
+  };
+
+  const NAME_TRANSLATIONS = {
+    'campus central express': 'कैंपस सेंट्रल एक्सप्रेस', 'science & health shuttle': 'विज्ञान और स्वास्थ्य शटल',
+    'hostels & sports connector': 'छात्रावास और खेल संपर्क मार्ग', 'main gate': 'मुख्य द्वार',
+    'administrative block': 'प्रशासनिक भवन', 'state bank of india branch': 'भारतीय स्टेट बैंक शाखा',
+    'central library': 'केंद्रीय पुस्तकालय', 'law faculty': 'विधि संकाय',
+    'gour sangrahalaya (university museum)': 'गौर संग्रहालय (विश्वविद्यालय संग्रहालय)',
+    'university road': 'विश्वविद्यालय मार्ग', 'science faculty': 'विज्ञान संकाय',
+    'advanced research labs': 'उन्नत अनुसंधान प्रयोगशालाएँ', 'university health centre': 'विश्वविद्यालय स्वास्थ्य केंद्र',
+    'botanical garden': 'वनस्पति उद्यान', 'law faculty junction': 'विधि संकाय चौराहा',
+    'shopping complex': 'खरीदारी परिसर', 'boys hostel block': 'बालक छात्रावास भवन',
+    'sports complex/stadium': 'खेल परिसर / स्टेडियम', 'girls hostel block': 'बालिका छात्रावास भवन',
+    'student activity centre': 'छात्र गतिविधि केंद्र', 'faculty residences': 'शिक्षक आवास',
+  };
+
+  function t(key, values = {}) {
+    const entry = TRANSLATIONS[key];
+    let value = entry ? entry[state.language] : key;
+    Object.entries(values).forEach(([name, replacement]) => { value = value.replaceAll(`{${name}}`, String(replacement)); });
+    return value;
+  }
+
+  function localizedName(value) {
+    if (state.language !== 'hi' || !value) return value || '';
+    return NAME_TRANSLATIONS[String(value).toLowerCase()] || value;
+  }
+
+  function localizedStatus(value, delayed = false, minutes = 0) {
+    if (state.language !== 'hi') return value || 'Unknown';
+    if (delayed || /delayed/i.test(value || '')) return `देरी (+${minutes || (String(value).match(/\d+/) || ['15'])[0]} मिनट)`;
+    if (/on time/i.test(value || '')) return 'समय पर';
+    if (/departed/i.test(value || '')) return 'रवाना हो गई';
+    return value || 'अज्ञात';
+  }
+
+  function applyTranslations() {
+    document.documentElement.lang = state.language;
+    document.title = t('pageTitle');
+    document.querySelectorAll('[data-i18n]').forEach(node => { node.textContent = t(node.dataset.i18n); });
+    document.querySelectorAll('[data-i18n-placeholder]').forEach(node => { node.placeholder = t(node.dataset.i18nPlaceholder); });
+    document.querySelectorAll('[data-i18n-title]').forEach(node => { node.title = t(node.dataset.i18nTitle); });
+    document.querySelectorAll('[data-i18n-aria-label]').forEach(node => { node.setAttribute('aria-label', t(node.dataset.i18nAriaLabel)); });
+    document.querySelectorAll('[data-i18n-value]').forEach(node => { node.value = t(node.dataset.i18nValue); });
+    const toggle = document.getElementById('languageToggle');
+    if (toggle) {
+      toggle.innerHTML = state.language === 'en' ? '<span class="language-active">EN</span><span class="language-divider">/</span><span lang="hi">हिं</span>' : '<span>EN</span><span class="language-divider">/</span><span class="language-active" lang="hi">हिं</span>';
+      toggle.setAttribute('aria-label', t('languageToggle'));
+      toggle.title = t('languageToggle');
+    }
+    const lastUpdated = document.getElementById('bottomLastUpdated');
+    if (lastUpdated?.dataset.lastUpdatedTime) lastUpdated.textContent = `${t('liveTelemetry')} • ${lastUpdated.dataset.lastUpdatedTime}`;
+    if (state.simRunning === false) {
+      const status = document.getElementById('liveStatusText');
+      const simText = document.getElementById('btnSimText');
+      const modalText = document.getElementById('modalToggleSimBtn');
+      if (status) status.textContent = t('simPaused');
+      if (simText) simText.textContent = t('resumeSim');
+      if (modalText) modalText.querySelector('[data-i18n]')?.replaceChildren(t('resumeEngine'));
+    } else {
+      const status = document.getElementById('liveStatusText');
+      const simText = document.getElementById('btnSimText');
+      if (status) status.textContent = t('liveFeed');
+      if (simText) simText.textContent = t('pauseSim');
+    }
+    document.getElementById('btnToggleSim')?.setAttribute('aria-label', t(state.simRunning === false ? 'resumeSimulation' : 'pauseSimulation'));
+    setQuickConnection(state.connectionMode);
+    renderLocalizedDynamicContent();
+  }
+
+  function renderLocalizedDynamicContent() {
+    const tab = document.body.dataset.activeTab || 'fleet';
+    const label = document.getElementById('sheetToggleLabel');
+    if (label) label.textContent = t(tab === 'schedules' ? 'schedules' : tab === 'presentation' ? 'demoGuide' : 'liveFleet');
+    const scheduleSelect = document.getElementById('scheduleRouteSelect');
+    if (scheduleSelect && state.routes.length) {
+      const selected = scheduleSelect.value;
+      scheduleSelect.innerHTML = `<option value="">${t('allCampusRoutes')}</option>` + state.routes.map(route => `<option value="${route.id}">${localizedName(route.name)} (${route.code})</option>`).join('');
+      scheduleSelect.value = selected;
+    }
+    renderRouteLines();
+    renderStops();
+    updateBusMarkers();
+    renderBusList();
+    renderNotifications();
+    renderSchedules();
+    updateTelemetryHeader();
+    applyRouteFilter();
+  }
 
   // SVGs for clean UI icons
   const ICONS = {
@@ -52,6 +183,7 @@ const App = (() => {
     document.querySelectorAll('.demo-section').forEach(section => {
       section.open = !window.matchMedia('(max-width: 768px)').matches;
     });
+    applyTranslations();
     try {
       if (typeof L === 'undefined') throw new Error('Leaflet did not load');
       initMap();
@@ -59,7 +191,7 @@ const App = (() => {
       console.error('Interactive map unavailable:', err);
       const mapContainer = document.getElementById('map');
       if (mapContainer) {
-        mapContainer.innerHTML = '<div class="map-unavailable">Interactive map could not load. Bus details remain available in the fleet list.</div>';
+        mapContainer.innerHTML = `<div class="map-unavailable">${t('mapUnavailable')}</div>`;
       }
     }
     bindEvents();
@@ -117,6 +249,11 @@ const App = (() => {
    * Bind DOM Events
    */
   function bindEvents() {
+    document.getElementById('languageToggle')?.addEventListener('click', () => {
+      state.language = state.language === 'en' ? 'hi' : 'en';
+      localStorage.setItem('unirideLanguage', state.language);
+      applyTranslations();
+    });
     // Tab Switching
     document.querySelectorAll('.tab-btn, .bottom-nav-btn').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -156,6 +293,25 @@ const App = (() => {
     if (btnToggleSim) {
       btnToggleSim.addEventListener('click', toggleSimulation);
     }
+
+    const quickDemoToggle = document.getElementById('quickDemoToggle');
+    const quickDemoPanel = document.getElementById('quickDemoPanel');
+    quickDemoToggle?.addEventListener('click', () => {
+      const expanded = quickDemoToggle.getAttribute('aria-expanded') === 'true';
+      quickDemoToggle.setAttribute('aria-expanded', String(!expanded));
+      if (quickDemoPanel) quickDemoPanel.hidden = expanded;
+      if (!expanded) document.getElementById('quickDemoBus')?.focus();
+    });
+    document.getElementById('quickTriggerDelay')?.addEventListener('click', triggerQuickDelay);
+    document.getElementById('quickClearDelays')?.addEventListener('click', clearAllDelays);
+    document.getElementById('quickResetDemo')?.addEventListener('click', resetQuickDemo);
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Escape' && quickDemoPanel && !quickDemoPanel.hidden) {
+        quickDemoPanel.hidden = true;
+        quickDemoToggle?.setAttribute('aria-expanded', 'false');
+        quickDemoToggle?.focus();
+      }
+    });
 
     // Modal Controls
     const btnOpenDemo = document.getElementById('btnOpenDemoModal');
@@ -245,9 +401,9 @@ const App = (() => {
     });
 
     const label = document.getElementById('sheetToggleLabel');
-    if (label) label.textContent = targetTab === 'schedules'
-      ? 'Schedules'
-      : targetTab === 'presentation' ? 'Demo guide' : 'Live fleet';
+    if (label) label.textContent = t(targetTab === 'schedules'
+      ? 'schedules'
+      : targetTab === 'presentation' ? 'demoGuide' : 'liveFleet');
 
     if (targetTab === 'schedules') fetchSchedules();
     if (window.matchMedia('(max-width: 768px)').matches && targetTab !== 'presentation') {
@@ -269,9 +425,7 @@ const App = (() => {
     }
     if (toggle) {
       toggle.setAttribute('aria-expanded', String(state.mobileSheetExpanded));
-      toggle.setAttribute('aria-label', state.mobileSheetExpanded
-        ? 'Collapse bus and schedule sheet'
-        : 'Expand bus and schedule sheet');
+      toggle.setAttribute('aria-label', t(state.mobileSheetExpanded ? 'collapseSheet' : 'expandSheet'));
     }
     if (state.map) {
       window.setTimeout(() => state.map.invalidateSize({ pan: false }), 240);
@@ -303,8 +457,10 @@ const App = (() => {
       // Update schedule filter dropdown
       const sel = document.getElementById('scheduleRouteSelect');
       if (sel) {
-        sel.innerHTML = '<option value="">All Campus Routes</option>' +
-          state.routes.map(r => `<option value="${r.id}">${r.name} (${r.code})</option>`).join('');
+        const selected = sel.value;
+        sel.innerHTML = `<option value="">${t('allCampusRoutes')}</option>` +
+          state.routes.map(r => `<option value="${r.id}">${localizedName(r.name)} (${r.code})</option>`).join('');
+        sel.value = selected;
       }
 
       // Draw route polylines and stops
@@ -320,6 +476,11 @@ const App = (() => {
    */
   function renderRouteLines() {
     if (!state.map) return;
+    Object.values(state.routePolylines).forEach(({ line, glow }) => {
+      if (state.map.hasLayer(line)) state.map.removeLayer(line);
+      if (state.map.hasLayer(glow)) state.map.removeLayer(glow);
+    });
+    state.routePolylines = {};
     state.routes.forEach(route => {
       if (route.waypoints && route.waypoints.length > 0) {
         // Outer glow polyline
@@ -340,7 +501,7 @@ const App = (() => {
           lineJoin: 'round',
         }).addTo(state.map);
 
-        line.bindTooltip(`<strong>${route.name}</strong><br>Frequency: Every ${route.frequency_mins} mins`, {
+        line.bindTooltip(`<strong>${localizedName(route.name)}</strong><br>${t('frequencyEvery', { minutes: route.frequency_mins })}`, {
           sticky: true,
           className: 'route-tooltip',
         });
@@ -363,7 +524,7 @@ const App = (() => {
       (route.stops || []).forEach(stop => {
         const icon = L.divIcon({
           className: 'custom-stop-icon',
-          html: `<div class="stop-marker-pin" style="border-color: ${route.color};" title="${stop.name}"></div>`,
+          html: `<div class="stop-marker-pin" style="border-color: ${route.color};" title="${localizedName(stop.name)}"></div>`,
           iconSize: [14, 14],
           iconAnchor: [7, 7],
         });
@@ -373,21 +534,23 @@ const App = (() => {
         marker.bindPopup(`
           <div class="custom-popup">
             <div class="popup-header">
-              <span class="popup-title">${stop.name}</span>
+              <span class="popup-title">${localizedName(stop.name)}</span>
               <span class="bus-route-tag" style="background-color: ${route.color}">${route.code}</span>
             </div>
             <div class="popup-row">
-              <span class="popup-label">Route:</span>
-              <span class="popup-val">${route.name}</span>
+              <span class="popup-label">${t('route')}:</span>
+              <span class="popup-val">${localizedName(route.name)}</span>
             </div>
             <div class="popup-row">
-              <span class="popup-label">Stop Sequence:</span>
-              <span class="popup-val">Stop #${stop.stop_order}</span>
+              <span class="popup-label">${t('stopSequence')}:</span>
+              <span class="popup-val">${t('stopNumber')}${stop.stop_order}</span>
             </div>
           </div>
         `);
 
         marker.bindTooltip(`📍 ${stop.name}`, { direction: 'top', offset: [0, -8] });
+        if (!state.showStops) state.map.removeLayer(marker);
+        marker.bindTooltip(localizedName(stop.name), { direction: 'top', offset: [0, -8] });
         state.stopMarkers.push(marker);
       });
     });
@@ -409,10 +572,108 @@ const App = (() => {
   /** Apply a bus snapshot received from either the API or the SSE stream. */
   function renderBusSnapshot(data) {
     state.buses = data.buses || [];
+    state.hasBusSnapshot = true;
+    renderQuickDemoBuses();
+    hideMapConnectOverlay();
     updateBusMarkers();
     renderBusList();
     updateTelemetryHeader();
     applyRouteFilter();
+  }
+
+  function renderQuickDemoBuses() {
+    const select = document.getElementById('quickDemoBus');
+    if (!select) return;
+    const previous = select.value;
+    select.replaceChildren();
+    state.buses.forEach(bus => {
+      const option = document.createElement('option');
+      option.value = bus.id;
+      option.textContent = `${t('bus')} ${bus.bus_number}`;
+      select.append(option);
+    });
+    if (state.buses.some(bus => String(bus.id) === previous)) select.value = previous;
+    select.disabled = state.buses.length === 0;
+  }
+
+  function setQuickConnection(mode) {
+    state.connectionMode = mode;
+    const dot = document.getElementById('quickConnectionDot');
+    const text = document.getElementById('quickConnectionText');
+    if (dot) dot.className = `connection-dot ${mode}`;
+    if (text) text.textContent = t(mode === 'connected' ? 'connectedLive' : mode === 'polling' ? 'pollingConnection' : 'connectingLive');
+  }
+
+  function hideMapConnectOverlay() {
+    const overlay = document.getElementById('mapConnectOverlay');
+    if (overlay) overlay.hidden = true;
+  }
+
+  let toastTimer = null;
+  function showDemoToast(message, isError = false) {
+    const toast = document.getElementById('demoToast');
+    if (!toast) return;
+    toast.textContent = message;
+    toast.classList.toggle('error', isError);
+    toast.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toast.classList.remove('show'), 3200);
+  }
+
+  async function triggerQuickDelay() {
+    const busId = Number(document.getElementById('quickDemoBus')?.value);
+    const bus = state.buses.find(item => item.id === busId);
+    if (!bus) return showDemoToast(t('noBusAvailable'), true);
+    if (Number(bus.delay_minutes) > 0) return showDemoToast(t('busAlreadyDelayed', { bus: bus.bus_number }));
+    const token = getAdminToken();
+    if (!token) return;
+    try {
+      const response = await fetch(`/api/demo/toggle-delay/${busId}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Admin-Token': token },
+        body: JSON.stringify({ minutes: 15, reason: 'Presentation demo delay' }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Unable to trigger delay.');
+      showDemoToast(t('delayTriggered', { bus: bus.bus_number }));
+      await Promise.all([fetchBuses(), fetchNotifications(), fetchSchedules()]);
+    } catch (error) {
+      if (error.message.includes('admin token')) sessionStorage.removeItem('unirideAdminToken');
+      showDemoToast(error.message || t('unableDelay'), true);
+    }
+  }
+
+  async function clearAllDelays() {
+    const delayedBuses = state.buses.filter(bus => Number(bus.delay_minutes) > 0);
+    if (!delayedBuses.length) return showDemoToast(t('noDelaysToClear'));
+    const token = getAdminToken();
+    if (!token) return;
+    try {
+      for (const bus of delayedBuses) {
+        const response = await fetch(`/api/demo/toggle-delay/${bus.id}`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Admin-Token': token }, body: JSON.stringify({ minutes: 0 }),
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || `Unable to clear Bus ${bus.bus_number}.`);
+      }
+      showDemoToast(t('delaysCleared', { count: delayedBuses.length, busWord: t(delayedBuses.length === 1 ? 'oneBus' : 'manyBuses') }));
+      await Promise.all([fetchBuses(), fetchNotifications(), fetchSchedules()]);
+    } catch (error) {
+      if (error.message.includes('admin token')) sessionStorage.removeItem('unirideAdminToken');
+      showDemoToast(error.message || t('unableClearDelays'), true);
+    }
+  }
+
+  async function resetQuickDemo() {
+    if (!window.confirm(t('confirmReset'))) return;
+    try {
+      const response = await fetch('/api/demo/reset', { method: 'POST' });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Unable to reset the demo.');
+      await Promise.all([fetchRoutes(), fetchBuses(), fetchNotifications(), fetchSchedules()]);
+      showDemoToast(t('resetComplete'));
+    } catch (error) {
+      showDemoToast(error.message || t('unableReset'), true);
+    }
   }
 
   /**
@@ -475,37 +736,37 @@ const App = (() => {
         <div class="popup-header">
           <span class="popup-title">${bus.bus_number}</span>
           <span class="status-badge ${isDelayed ? 'delayed' : 'on-time'}">
-            ${bus.status}
+            ${localizedStatus(bus.status, isDelayed, bus.delay_minutes)}
           </span>
         </div>
         <div class="popup-row">
-          <span class="popup-label">Route:</span>
-          <span class="popup-val" style="color:${bus.route_color}">${bus.route_name}</span>
+          <span class="popup-label">${t('route')}:</span>
+          <span class="popup-val" style="color:${bus.route_color}">${localizedName(bus.route_name)}</span>
         </div>
         <div class="popup-row">
-          <span class="popup-label">Driver:</span>
+          <span class="popup-label">${t('driver')}:</span>
           <span class="popup-val">${formatDriverName(bus.driver_name)}</span>
         </div>
         <div class="popup-row">
-          <span class="popup-label">Speed:</span>
+          <span class="popup-label">${t('speed')}:</span>
           <span class="popup-val">${bus.speed_mph} mph</span>
         </div>
         <div class="popup-row">
-          <span class="popup-label">Next Stop:</span>
-          <span class="popup-val">${bus.next_stop_name || 'In Transit'}</span>
+          <span class="popup-label">${t('nextStop')}:</span>
+          <span class="popup-val">${localizedName(bus.next_stop_name) || t('inTransit')}</span>
         </div>
         <div class="popup-row">
-          <span class="popup-label">ETA:</span>
-          <span class="popup-val">${bus.eta_minutes} mins</span>
+          <span class="popup-label">${t('eta')}:</span>
+          <span class="popup-val">${bus.eta_minutes} ${t('mins')}</span>
         </div>
         <div class="popup-row">
-          <span class="popup-label">Occupancy:</span>
-          <span class="popup-val">${bus.capacity_percent}% Full</span>
+          <span class="popup-label">${t('occupancy')}:</span>
+          <span class="popup-val">${bus.capacity_percent}% ${t('full')}</span>
         </div>
         <div class="action-row" style="margin-top: 8px;">
           <button class="btn ${isDelayed ? 'btn-success' : 'btn-warning'} btn-sm" style="width: 100%;"
                   onclick="App.triggerDelay(${bus.id}, ${isDelayed ? 0 : 15}, 'Simulated Demo Delay')">
-            ${isDelayed ? 'Clear Delay' : 'Simulate Delay (+15m)'}
+            ${isDelayed ? t('clearDelay') : `${t('simulateDelay')} (+15m)`}
           </button>
         </div>
       </div>
@@ -520,7 +781,8 @@ const App = (() => {
     if (!container) return;
 
     if (state.buses.length === 0) {
-      container.innerHTML = `<div class="loading-state"><span>No active buses in service.</span></div>`;
+      if (!state.hasBusSnapshot) return;
+      container.innerHTML = `<div class="loading-state"><span>${t('noActiveBuses')}</span></div>`;
       updateMobilePeekCard();
       return;
     }
@@ -548,33 +810,33 @@ const App = (() => {
             </div>
             <span class="status-badge ${isDelayed ? 'delayed' : 'on-time'}">
               ${isDelayed ? ICONS.alert : ICONS.check}
-              ${bus.status}
+              ${localizedStatus(bus.status, isDelayed, bus.delay_minutes)}
             </span>
           </div>
 
           <div class="bus-details-grid">
             <div class="detail-item">
-              <span class="detail-label">Next Stop</span>
-              <span class="detail-value" title="${bus.next_stop_name || 'En route'}">
-                ${bus.next_stop_name ? (bus.next_stop_name.length > 18 ? bus.next_stop_name.substring(0, 18) + '...' : bus.next_stop_name) : 'In Transit'}
+              <span class="detail-label">${t('nextStop')}</span>
+              <span class="detail-value" title="${localizedName(bus.next_stop_name) || t('enRoute')}">
+                ${bus.next_stop_name ? (localizedName(bus.next_stop_name).length > 18 ? localizedName(bus.next_stop_name).substring(0, 18) + '...' : localizedName(bus.next_stop_name)) : t('inTransit')}
               </span>
             </div>
             <div class="detail-item">
-              <span class="detail-label">ETA to Stop</span>
+              <span class="detail-label">${t('etaToStop')}</span>
               <span class="detail-value">
                 ${ICONS.clock}
-                ${bus.eta_minutes} mins
+                ${bus.eta_minutes} ${t('mins')}
               </span>
             </div>
             <div class="detail-item">
-              <span class="detail-label">Speed</span>
+              <span class="detail-label">${t('speed')}</span>
               <span class="detail-value">
                 ${ICONS.speed}
                 ${bus.speed_mph} mph
               </span>
             </div>
             <div class="detail-item">
-              <span class="detail-label">Driver</span>
+              <span class="detail-label">${t('driver')}</span>
               <span class="detail-value">
                 ${formatDriverName(bus.driver_name)}
               </span>
@@ -583,7 +845,7 @@ const App = (() => {
 
           <div class="capacity-wrapper">
             <div class="capacity-header">
-              <span>Passenger Occupancy</span>
+              <span>${t('passengerOccupancy')}</span>
               <span>${bus.capacity_percent}%</span>
             </div>
             <div class="capacity-bar-track">
@@ -593,11 +855,11 @@ const App = (() => {
 
           <div class="bus-card-actions">
             <button class="btn btn-outline btn-sm" style="flex:1;" onclick="event.stopPropagation(); App.focusOnBus(${bus.id});">
-              Center on Map
+              ${t('centerMap')}
             </button>
             <button class="btn ${isDelayed ? 'btn-success' : 'btn-warning'} btn-sm" style="flex:1;" 
                     onclick="event.stopPropagation(); App.triggerDelay(${bus.id}, ${isDelayed ? 0 : 15}, 'Patharia Hills road maintenance work')">
-              ${isDelayed ? 'Clear Delay' : 'Simulate Delay'}
+              ${isDelayed ? t('clearDelay') : t('simulateDelay')}
             </button>
           </div>
         </div>
@@ -686,8 +948,8 @@ const App = (() => {
           <div class="notif-content">
             <div class="notif-icon">${ICONS.check}</div>
             <div class="notif-text-wrap">
-              <span class="notif-title" style="color: #166534;">All Transit Systems Normal</span>
-              <span class="notif-msg" style="color: #15803d;">All DHSGSU campus transit routes are operating on scheduled timetable. No active delays.</span>
+              <span class="notif-title" style="color: #166534;">${t('allNormal')}</span>
+              <span class="notif-msg" style="color: #15803d;">${t('normalMessage')}</span>
             </div>
           </div>
         </div>
@@ -698,25 +960,34 @@ const App = (() => {
     // Render active delay alerts
     container.innerHTML = state.notifications.map(notif => {
       const isDanger = notif.severity === 'danger';
+      const bus = state.buses.find(item => item.id === notif.bus_id);
+      const isDelayAlert = Boolean(bus && (Number(bus.delay_minutes) > 0 || /delay/i.test(notif.title || '')));
+      const delayMinutes = bus?.delay_minutes || (String(notif.title || '').match(/\+(\d+)/) || [])[1] || 15;
+      const title = isDelayAlert
+        ? t('delayOnBusTitle', { bus: bus.bus_number })
+        : localizedName(notif.title);
+      const message = isDelayAlert
+        ? t('delayOnBusMessage', { bus: bus.bus_number, minutes: delayMinutes, stop: localizedName(bus.next_stop_name) || t('route') })
+        : localizedName(notif.message);
       return `
         <div class="notification-banner ${isDanger ? 'danger' : ''}">
           <div class="notif-content">
             <div class="notif-icon">${ICONS.alert}</div>
             <div class="notif-text-wrap">
               <div class="notif-title-row">
-                <span class="notif-title">${notif.title}</span>
-                ${notif.route_name ? `<span class="brand-badge" style="background:#fef08a; color:#854d0e;">${notif.route_name}</span>` : ''}
+                <span class="notif-title">${title}</span>
+                ${notif.route_name ? `<span class="brand-badge" style="background:#fef08a; color:#854d0e;">${localizedName(notif.route_name)}</span>` : ''}
               </div>
-              <span class="notif-msg">${notif.message}</span>
+              <span class="notif-msg">${message}</span>
             </div>
           </div>
           <div class="notif-actions">
             ${notif.bus_id ? `
               <button class="btn-notif-action" onclick="App.focusOnBus(${notif.bus_id})">
-                Focus on Bus
+                ${t('focusBus')}
               </button>
             ` : ''}
-            <button class="btn-notif-dismiss" title="Dismiss Alert" onclick="App.dismissNotification(${notif.id})">
+            <button class="btn-notif-dismiss" title="${t('dismissAlert')}" aria-label="${t('dismissAlert')}" onclick="App.dismissNotification(${notif.id})">
               &times;
             </button>
           </div>
@@ -761,15 +1032,17 @@ const App = (() => {
     if (!tbody && !cardContainer) return;
 
     if (state.schedules.length === 0) {
-      if (tbody) tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding: 20px;">No schedule records found.</td></tr>`;
-      if (cardContainer) cardContainer.innerHTML = '<div class="schedule-empty-state">No schedule records found.</div>';
+      if (tbody) tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding: 20px;">${t('noSchedules')}</td></tr>`;
+      if (cardContainer) cardContainer.innerHTML = `<div class="schedule-empty-state">${t('noSchedules')}</div>`;
       return;
     }
 
     const schedules = state.schedules.map(item => {
-      const status = String(item.status || 'Unknown');
-      const isDelayed = status.toLowerCase().includes('delay');
-      const isDeparted = status.toLowerCase().includes('departed');
+      const rawStatus = String(item.status || 'Unknown');
+      const isDelayed = rawStatus.toLowerCase().includes('delay');
+      const isDeparted = rawStatus.toLowerCase().includes('departed');
+      const bus = state.buses.find(candidate => candidate.bus_number === item.bus_number);
+      const status = localizedStatus(rawStatus, isDelayed, bus?.delay_minutes || (rawStatus.match(/\+(\d+)/) || [])[1]);
       
       let badgeClass = 'on-time';
       if (isDelayed) badgeClass = 'delayed';
@@ -780,10 +1053,10 @@ const App = (() => {
           <td>
             <div style="display:flex; flex-direction:column;">
               <span style="font-weight:700;">${item.bus_number || 'TBD'}</span>
-              <span style="font-size:0.68rem; color:${item.route_color};">${item.route_name}</span>
+              <span style="font-size:0.68rem; color:${item.route_color};">${localizedName(item.route_name)}</span>
             </div>
           </td>
-          <td><strong>${item.stop_name}</strong></td>
+          <td><strong>${localizedName(item.stop_name)}</strong></td>
           <td><span style="font-family:var(--font-mono); font-size:0.75rem;">${item.scheduled_time}</span></td>
           <td><span style="font-family:var(--font-mono); font-size:0.75rem; font-weight:600;">${item.estimated_time}</span></td>
           <td>
@@ -798,14 +1071,14 @@ const App = (() => {
       const card = `
         <article class="schedule-card" style="--schedule-route-color: ${item.route_color || '#2563eb'}">
           <h3 class="schedule-card-title">
-            ${item.bus_number || 'Campus bus'}
-            <span class="schedule-card-subtitle">${item.route_name || 'Campus route'}</span>
+            ${item.bus_number || t('campusBus')}
+            <span class="schedule-card-subtitle">${localizedName(item.route_name) || t('campusRoute')}</span>
           </h3>
           <div class="schedule-card-grid">
-            <div class="schedule-card-field"><span class="schedule-card-label">Stop</span><span class="schedule-card-value">${item.stop_name}</span></div>
-            <div class="schedule-card-field"><span class="schedule-card-label">Scheduled</span><span class="schedule-card-value">${item.scheduled_time}</span></div>
-            <div class="schedule-card-field"><span class="schedule-card-label">ETA</span><span class="schedule-card-value">${item.estimated_time}</span></div>
-            <div class="schedule-card-field"><span class="schedule-card-label">Status</span><span class="schedule-status-pill ${cardStatusClass}">${status}</span></div>
+            <div class="schedule-card-field"><span class="schedule-card-label">${t('stop')}</span><span class="schedule-card-value">${localizedName(item.stop_name)}</span></div>
+            <div class="schedule-card-field"><span class="schedule-card-label">${t('scheduled')}</span><span class="schedule-card-value">${item.scheduled_time}</span></div>
+            <div class="schedule-card-field"><span class="schedule-card-label">${t('eta')}</span><span class="schedule-card-value">${item.estimated_time}</span></div>
+            <div class="schedule-card-field"><span class="schedule-card-label">${t('status')}</span><span class="schedule-status-pill ${cardStatusClass}">${status}</span></div>
           </div>
         </article>
       `;
@@ -839,12 +1112,13 @@ const App = (() => {
       const hasAlerts = state.notifications.length > 0;
       mobileStatAlertsChip.classList.toggle('is-alert', hasAlerts);
       mobileStatAlertsChip.classList.toggle('is-clear', !hasAlerts);
-      mobileStatAlertsChip.setAttribute('aria-label', `${state.notifications.length} active delays`);
+      mobileStatAlertsChip.setAttribute('aria-label', `${state.notifications.length} ${t('activeDelays').toLowerCase()}`);
     }
 
     if (bottomLastUpdated) {
       const now = new Date();
-      bottomLastUpdated.textContent = `Live Telemetry • ${now.toLocaleTimeString()}`;
+      bottomLastUpdated.dataset.lastUpdatedTime = now.toLocaleTimeString();
+      bottomLastUpdated.textContent = `${t('liveTelemetry')} • ${bottomLastUpdated.dataset.lastUpdatedTime}`;
     }
   }
 
@@ -900,12 +1174,14 @@ const App = (() => {
    */
   function startLiveUpdates() {
     if (typeof EventSource === 'undefined') {
+      setQuickConnection('polling', t('pollingConnection'));
       startPolling();
       return;
     }
 
     const eventSource = new EventSource('/api/buses/stream');
     state.busEventSource = eventSource;
+    setQuickConnection('connecting', t('connectingLive'));
     let receivedBusSnapshot = false;
     let pollingFallbackStarted = false;
 
@@ -928,6 +1204,7 @@ const App = (() => {
         const snapshot = JSON.parse(event.data);
         renderBusSnapshot(snapshot);
         receivedBusSnapshot = true;
+        setQuickConnection('connected', t('connectedLive'));
         if (state.sseConnectionTimer) clearTimeout(state.sseConnectionTimer);
         state.sseConnectionTimer = null;
       } catch (err) {
@@ -945,11 +1222,16 @@ const App = (() => {
         console.error('Error parsing live notification update:', err);
       }
     });
-    eventSource.onerror = fallbackToPolling;
+    eventSource.onopen = () => setQuickConnection('connected', t('connectedLive'));
+    eventSource.onerror = () => {
+      setQuickConnection('polling', t('pollingConnection'));
+      fallbackToPolling();
+    };
   }
 
   /** Poll bus snapshots and notifications when EventSource is unavailable. */
   function startPolling() {
+    setQuickConnection('polling', t('pollingConnection'));
     if (state.pollingTimer) clearInterval(state.pollingTimer);
     fetchBuses();
     fetchNotifications();
@@ -981,7 +1263,7 @@ const App = (() => {
   function getAdminToken() {
     let token = sessionStorage.getItem('unirideAdminToken');
     if (!token) {
-      token = window.prompt('Enter the admin token to simulate or clear a delay:');
+      token = window.prompt(t('adminPrompt'));
       if (!token) return null;
       sessionStorage.setItem('unirideAdminToken', token);
     }
@@ -1003,7 +1285,7 @@ const App = (() => {
       const data = await res.json();
       if (res.status === 401) {
         sessionStorage.removeItem('unirideAdminToken');
-        alert(data.error || 'The admin token was not accepted. Please try again.');
+        alert(data.error || t('adminRejected'));
         return;
       }
       if (!res.ok) {
@@ -1056,7 +1338,7 @@ const App = (() => {
         }),
       });
       const data = await res.json();
-      alert(`Pushed GPS Telemetry to Backend!\nEndpoint: POST /api/buses/${bus.id}/location\nNew Coordinates: [${nudgeLat.toFixed(5)}, ${nudgeLng.toFixed(5)}]`);
+      alert(`${t('gpsPushed')}\nEndpoint: POST /api/buses/${bus.id}/location\n${t('newCoordinates')}: [${nudgeLat.toFixed(5)}, ${nudgeLng.toFixed(5)}]`);
       await fetchBuses();
       selectBus(bus.id, true);
     } catch (err) {
@@ -1082,18 +1364,18 @@ const App = (() => {
 
       if (state.simRunning) {
         if (liveDot) liveDot.classList.remove('paused');
-        if (liveStatusText) liveStatusText.textContent = 'LIVE FEED (3s)';
-        if (btnSimText) btnSimText.textContent = 'Pause Sim';
-        if (modalToggleSimBtn) modalToggleSimBtn.textContent = 'Pause Engine';
+        if (liveStatusText) liveStatusText.textContent = t('liveFeed');
+        if (btnSimText) btnSimText.textContent = t('pauseSim');
+        if (modalToggleSimBtn) modalToggleSimBtn.querySelector('[data-i18n]')?.replaceChildren(t('pauseEngine'));
         if (simIcon) simIcon.innerHTML = '<path d="M8 5v14M16 5v14" stroke-linecap="round"></path>';
       } else {
         if (liveDot) liveDot.classList.add('paused');
-        if (liveStatusText) liveStatusText.textContent = 'SIM PAUSED';
-        if (btnSimText) btnSimText.textContent = 'Resume Sim';
-        if (modalToggleSimBtn) modalToggleSimBtn.textContent = 'Resume Engine';
+        if (liveStatusText) liveStatusText.textContent = t('simPaused');
+        if (btnSimText) btnSimText.textContent = t('resumeSim');
+        if (modalToggleSimBtn) modalToggleSimBtn.querySelector('[data-i18n]')?.replaceChildren(t('resumeEngine'));
         if (simIcon) simIcon.innerHTML = '<polygon points="5 3 19 12 5 21 5 3"></polygon>';
       }
-      document.getElementById('btnToggleSim')?.setAttribute('aria-label', simLabel);
+      document.getElementById('btnToggleSim')?.setAttribute('aria-label', t(state.simRunning ? 'pauseSimulation' : 'resumeSimulation'));
     } catch (err) {
       console.error('Error toggling simulation:', err);
     }
@@ -1103,14 +1385,14 @@ const App = (() => {
    * Demo Action: Reset Demo State to Initial Seed
    */
   async function resetDemoState() {
-    if (!confirm('Reset all buses, schedules, and alerts back to baseline demo state?')) return;
+    if (!confirm(t('resetBaseline'))) return;
     try {
       await fetch('/api/demo/reset', { method: 'POST' });
       await fetchRoutes();
       await fetchBuses();
       await fetchNotifications();
       await fetchSchedules();
-      alert('Demo database reset successfully.');
+      alert(t('demoResetSuccess'));
     } catch (err) {
       console.error('Error resetting demo state:', err);
     }

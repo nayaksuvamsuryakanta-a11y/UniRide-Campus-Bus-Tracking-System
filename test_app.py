@@ -67,9 +67,11 @@ class CampusBusTestCase(unittest.TestCase):
 
     def test_api_malformed_json_returns_json_400(self):
         """Malformed JSON request bodies use a JSON 400 response."""
-        response = self.client.post(
-            '/api/buses/1/location', data='{', content_type='application/json'
-        )
+        with patch.dict(os.environ, {'GPS_UPDATE_TOKEN': 'test-gps-token'}):
+            response = self.client.post(
+                '/api/buses/1/location', data='{', content_type='application/json',
+                headers={'X-Update-Token': 'test-gps-token'},
+            )
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.mimetype, 'application/json')
         self.assertEqual(response.get_json()['status'], 'error')
@@ -106,21 +108,39 @@ class CampusBusTestCase(unittest.TestCase):
             response.close()
 
     def test_update_bus_location(self):
-        """Test POST /api/buses/<id>/location manually updates GPS location."""
+        """An authenticated update at the current position is accepted."""
+        bus = next(bus for bus in self.client.get('/api/buses').get_json()['buses'] if bus['id'] == 1)
         new_loc = {
-            'lat': 23.8290,
-            'lng': 78.7705,
+            'lat': bus['current_lat'],
+            'lng': bus['current_lng'],
             'speed_mph': 24.5,
             'heading': 180,
             'status': 'On Time'
         }
-        response = self.client.post('/api/buses/1/location',
-                                   data=json.dumps(new_loc),
-                                   content_type='application/json')
+        with patch.dict(os.environ, {'GPS_UPDATE_TOKEN': 'test-gps-token'}):
+            response = self.client.post('/api/buses/1/location',
+                                       data=json.dumps(new_loc),
+                                       content_type='application/json',
+                                       headers={'X-Update-Token': 'test-gps-token'})
         self.assertEqual(response.status_code, 200)
         data = json.loads(response.data)
         self.assertEqual(data['status'], 'success')
-        self.assertEqual(data['lat'], 23.8290)
+        self.assertEqual(data['lat'], bus['current_lat'])
+
+    def test_location_update_rejects_missing_or_invalid_token(self):
+        with patch.dict(os.environ, {'GPS_UPDATE_TOKEN': 'test-gps-token'}):
+            missing = self.client.post('/api/buses/1/location', json={'lat': 23.8268, 'lng': 78.7712})
+            invalid = self.client.post('/api/buses/1/location', json={'lat': 23.8268, 'lng': 78.7712},
+                                       headers={'X-Update-Token': 'wrong-token'})
+        self.assertEqual(missing.status_code, 401)
+        self.assertEqual(invalid.status_code, 401)
+
+    def test_location_update_rejects_out_of_bounds_coordinates(self):
+        with patch.dict(os.environ, {'GPS_UPDATE_TOKEN': 'test-gps-token'}):
+            response = self.client.post('/api/buses/1/location', json={'lat': 40.0, 'lng': 78.7712},
+                                        headers={'X-Update-Token': 'test-gps-token'})
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('Sagar', response.get_json()['error'])
 
     def test_get_routes(self):
         """Test GET /api/routes returns route paths and stops."""

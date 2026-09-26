@@ -34,7 +34,7 @@
         </div>
         <div>
           <h1 class="brand-title">UniRide <span class="brand-badge">DHSGSU Sagar</span></h1>
-          <p class="brand-sub">Real-Time GPS Bus Tracker & Schedule</p>
+          <p class="brand-sub" data-i18n="brandSubtitle">Real-Time GPS Bus Tracker & Schedule</p>
         </div>
       </div>
     </div>
@@ -43,40 +43,41 @@
     <div class="header-center">
       <div class="status-indicator">
         <span class="live-dot" id="liveDot"></span>
-        <span class="status-text" id="liveStatusText">LIVE FEED (3s)</span>
+        <span class="status-text" id="liveStatusText" data-i18n="liveFeed">LIVE FEED (3s)</span>
       </div>
       <div class="header-stats">
         <div class="stat-item">
           <span class="stat-val" id="statActiveBuses">4</span>
-          <span class="stat-label">Buses Active</span>
+          <span class="stat-label" data-i18n="busesActive">Buses Active</span>
         </div>
         <div class="stat-divider"></div>
         <div class="stat-item">
           <span class="stat-val" id="statRoutes">3</span>
-          <span class="stat-label">Campus Routes</span>
+          <span class="stat-label" data-i18n="campusRoutes">Campus Routes</span>
         </div>
         <div class="stat-divider"></div>
         <div class="stat-item" id="statAlertsWrapper">
           <span class="stat-val text-warning" id="statAlerts">1</span>
-          <span class="stat-label">Active Delays</span>
+          <span class="stat-label" data-i18n="activeDelays">Active Delays</span>
         </div>
       </div>
     </div>
 
     <!-- Demo Presentation & Action Controls -->
     <div class="header-right">
-      <button class="btn btn-outline" id="btnToggleSim" title="Pause or Resume background bus movement" aria-label="Pause simulation">
+      <button class="btn btn-outline" id="btnToggleSim" title="Pause or Resume background bus movement" data-i18n-title="pauseResumeEngine" aria-label="Pause simulation" data-i18n-aria-label="pauseSimulation">
         <svg id="simIcon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M8 5v14M16 5v14" stroke-linecap="round"></path>
         </svg>
-        <span id="btnSimText">Pause Sim</span>
+        <span id="btnSimText" data-i18n="pauseSim">Pause Sim</span>
       </button>
       <button class="btn btn-primary" id="btnOpenDemoModal">
         <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2">
           <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
         </svg>
-        <span>Demo Controls</span>
+        <span data-i18n="demoControls">Demo Controls</span>
       </button>
+      <button class="language-toggle" id="languageToggle" type="button" aria-label="Switch language to Hindi" title="Switch language to Hindi"><span class="language-active">EN</span><span class="language-divider">/</span><span lang="hi">हिं</span></button>
     </div>
   </header>
 
@@ -87,15 +88,15 @@
 
   <!-- Main Application Workspace -->
   <main class="main-layout">
-    <div class="map-search-bar" role="search" aria-label="Route and stop search">
+    <div class="map-search-bar" role="search" aria-label="Route and stop search" data-i18n-aria-label="mapSearchLabel">
       <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-4-4"></path></svg>
-      <input type="search" placeholder="Search routes or stops" aria-label="Search routes or stops" disabled>
+      <input type="search" placeholder="Search routes or stops" aria-label="Search routes or stops" data-i18n-placeholder="searchRoutesStops" disabled>
     </div>
     <!-- Sidebar / Drawer -->
     <aside class="sidebar">
-      <button class="sheet-toggle" id="sheetToggle" type="button" aria-expanded="false" aria-label="Expand bus and schedule sheet">
+      <button class="sheet-toggle" id="sheetToggle" type="button" aria-expanded="false" aria-label="Expand bus and schedule sheet" data-i18n-aria-label="expandSheet">
         <span class="sheet-handle-pill" aria-hidden="true"></span>
-        <span class="sheet-toggle-label" id="sheetToggleLabel">Live fleet</span>
+        <span class="sheet-toggle-label" id="sheetToggleLabel" data-i18n="liveFleet">Live fleet</span>
         <svg class="sheet-chevron" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
       </button>
       
@@ -107,20 +108,20 @@
             <circle cx="7" cy="14" r="1.5" />
             <circle cx="17" cy="14" r="1.5" />
           </svg>
-          Live Fleet
+          <span data-i18n="liveFleet">Live Fleet</span>
         </button>
         <button class="tab-btn" data-tab="schedules">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="10" />
             <polyline points="12 6 12 12 16 14" />
           </svg>
-          Schedules
+          <span data-i18n="schedules">Schedules</span>
         </button>
         <button class="tab-btn" data-tab="presentation">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
             <polygon points="5 3 19 12 5 21 5 3"></polygon>
           </svg>
-          Demo Guide
+          <span data-i18n="demoGuide">Demo Guide</span>
         </button>
       </div>
 
@@ -128,12 +129,12 @@
       <div class="tab-pane active" id="pane-fleet">
         <!-- Route Filters -->
         <div class="filter-bar">
-          <span class="filter-label">Filter:</span>
+          <span class="filter-label" data-i18n="filter">Filter:</span>
           <div class="filter-chips">
-            <button class="chip active" data-filter="all">All</button>
-            <button class="chip" data-filter="CAMP-10" style="--chip-color: #2563EB;">Express</button>
-            <button class="chip" data-filter="SCI-20" style="--chip-color: #059669;">Tech</button>
-            <button class="chip" data-filter="HOST-30" style="--chip-color: #7C3AED;">Residences</button>
+            <button class="chip active" data-filter="all" data-i18n="all">All</button>
+            <button class="chip" data-filter="CAMP-10" style="--chip-color: #2563EB;" data-i18n="express">Express</button>
+            <button class="chip" data-filter="SCI-20" style="--chip-color: #059669;" data-i18n="tech">Tech</button>
+            <button class="chip" data-filter="HOST-30" style="--chip-color: #7C3AED;" data-i18n="residences">Residences</button>
           </div>
         </div>
 
@@ -141,7 +142,7 @@
         <div class="bus-list" id="busList">
           <div class="loading-state">
             <div class="spinner"></div>
-            <span>Connecting to DHSGSU bus telemetry...</span>
+            <span data-i18n="connectingTelemetry">Connecting to DHSGSU bus telemetry...</span>
           </div>
         </div>
       </div>
@@ -149,20 +150,20 @@
       <!-- Tab Content 2: Schedules -->
       <div class="tab-pane" id="pane-schedules">
         <div class="schedule-filter-bar">
-          <label for="scheduleRouteSelect" class="form-label">Select Route:</label>
+          <label for="scheduleRouteSelect" class="form-label" data-i18n="selectRoute">Select Route:</label>
           <select id="scheduleRouteSelect" class="custom-select">
-            <option value="">All DHSGSU Campus Routes</option>
+            <option value="" data-i18n="allCampusRoutes">All DHSGSU Campus Routes</option>
           </select>
         </div>
         <div class="schedules-table-container">
           <table class="schedule-table">
             <thead>
               <tr>
-                <th>Bus / Route</th>
-                <th>Stop</th>
-                <th>Scheduled</th>
-                <th>Est. Arrival</th>
-                <th>Status</th>
+                <th data-i18n="busRoute">Bus / Route</th>
+                <th data-i18n="stop">Stop</th>
+                <th data-i18n="scheduled">Scheduled</th>
+                <th data-i18n="estimatedArrival">Est. Arrival</th>
+                <th data-i18n="status">Status</th>
               </tr>
             </thead>
             <tbody id="schedulesTableBody">
@@ -177,38 +178,38 @@
       <div class="tab-pane" id="pane-presentation">
         <div class="demo-guide-card">
           <div class="guide-header">
-            <h3>5-10 Minute Presentation Script</h3>
+            <h3 data-i18n="presentationScript">5-10 Minute Presentation Script</h3>
             <span class="badge badge-info">DHSGSU Sagar</span>
           </div>
           <p class="guide-intro">
-            Interactive guide to demo the Dr. Harisingh Gour Vishwavidyalaya transit tracker.
+            <span data-i18n="interactiveGuide">Interactive guide to demo the Dr. Harisingh Gour Vishwavidyalaya transit tracker.</span>
           </p>
 
           <ol class="guide-steps">
             <li>
-              <strong>1. System Overview (1 min):</strong>
-              <p>Flask REST API + SQLite spatial waypoints for DHSGSU Sagar campus on Patharia Hills + Leaflet.js real-time frontend.</p>
+              <strong data-i18n="systemOverview">1. System Overview (1 min):</strong>
+              <p data-i18n="systemOverviewText">Flask REST API + SQLite spatial waypoints for DHSGSU Sagar campus on Patharia Hills + Leaflet.js real-time frontend.</p>
             </li>
             <li>
-              <strong>2. Real-Time Tracking & Telemetry (2 mins):</strong>
-              <p>Show buses traveling along University Road, Central Library, Science Complex, and Hostels. Click any bus to inspect speed, driver, and passenger load.</p>
+              <strong data-i18n="trackingTelemetry">2. Real-Time Tracking & Telemetry (2 mins):</strong>
+              <p data-i18n="trackingText">Show buses traveling along University Road, Central Library, Science Complex, and Hostels. Click any bus to inspect speed, driver, and passenger load.</p>
             </li>
             <li>
-              <strong>3. Delay Simulation & Notification Banner (3 mins):</strong>
-              <p>Simulate a delay on Bus 101 to demonstrate the immediate delay banner, map beacon, and timetable adjustment:</p>
-              <div class="action-row">
-                <button class="btn btn-warning btn-sm" onclick="App.triggerDelay(1, 15, 'Traffic congestion near Main Gate on Patharia Hills')">
+              <strong data-i18n="delaySimulation">3. Delay Simulation & Notification Banner (3 mins):</strong>
+              <p data-i18n="delayText">Simulate a delay on Bus 101 to demonstrate the immediate delay banner, map beacon, and timetable adjustment:</p>
+        <div class="action-row">
+                <button class="btn btn-warning btn-sm" data-i18n="simulateDelayBus" onclick="App.triggerDelay(1, 15, 'Traffic congestion near Main Gate on Patharia Hills')">
                   Simulate Delay (Bus 101)
                 </button>
-                <button class="btn btn-success btn-sm" onclick="App.triggerDelay(1, 0, '')">
-                  Resolve Delay
+                <button class="btn btn-success btn-sm" data-i18n="resolveDelay" onclick="App.triggerDelay(1, 0, '')">
+                <span data-i18n="resolveDelay">Resolve Delay</span>
                 </button>
               </div>
             </li>
             <li>
-              <strong>4. Live REST API Location Updates (2 mins):</strong>
-              <p>Step simulation forward to show asynchronous GPS telemetry updates:</p>
-              <button class="btn btn-outline btn-sm" onclick="App.stepSimulation()">
+              <strong data-i18n="locationUpdates">4. Live REST API Location Updates (2 mins):</strong>
+              <p data-i18n="stepText">Step simulation forward to show asynchronous GPS telemetry updates:</p>
+              <button class="btn btn-outline btn-sm" data-i18n="stepGps" onclick="App.stepSimulation()">
                 Step GPS Ping (1 tick)
               </button>
             </li>
@@ -219,38 +220,59 @@
       <!-- Sidebar Footer -->
       <div class="sidebar-footer">
         <div class="legend">
-          <div class="legend-item"><span class="legend-dot" style="background:#2563EB;"></span> Campus Central Express</div>
-          <div class="legend-item"><span class="legend-dot" style="background:#059669;"></span> Science & Health</div>
-          <div class="legend-item"><span class="legend-dot" style="background:#7C3AED;"></span> Hostels & Sports</div>
+          <div class="legend-item"><span class="legend-dot" style="background:#2563EB;"></span> <span data-i18n="centralExpress">Campus Central Express</span></div>
+          <div class="legend-item"><span class="legend-dot" style="background:#059669;"></span> <span data-i18n="scienceHealth">Science &amp; Health</span></div>
+          <div class="legend-item"><span class="legend-dot" style="background:#7C3AED;"></span> <span data-i18n="hostelsSports">Hostels &amp; Sports</span></div>
         </div>
-        <div class="system-footer-text">Dr. Harisingh Gour Vishwavidyalaya Campus Transit System</div>
+        <div class="system-footer-text" data-i18n="campusTransitSystem">Dr. Harisingh Gour Vishwavidyalaya Campus Transit System</div>
       </div>
     </aside>
 
     <!-- Map Canvas Container -->
     <section class="map-section">
       <div id="map"></div>
+      <div class="map-connect-overlay" id="mapConnectOverlay" role="status" aria-live="polite">
+        <span class="connect-spinner" aria-hidden="true"></span>
+        <span data-i18n="connectingLive">Connecting to live feed...</span>
+      </div>
 
-      <div class="mobile-map-overlays" aria-label="Map filters and service summary">
-        <div class="mobile-stat-strip" aria-label="Service summary">
-          <div class="mobile-stat-chip"><span class="mobile-stat-value" id="mobileStatActiveBuses">4</span><span>buses</span></div>
-          <div class="mobile-stat-chip"><span class="mobile-stat-value" id="mobileStatRoutes">3</span><span>routes</span></div>
+      <div class="quick-demo-controls">
+        <button class="quick-demo-trigger" id="quickDemoToggle" type="button" aria-expanded="false" aria-controls="quickDemoPanel">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z"/><path d="m19.4 15 .1.1a1.7 1.7 0 1 1-2.4 2.4l-.1-.1a1.7 1.7 0 0 0-2.9 1.2v.2a1.7 1.7 0 1 1-3.4 0v-.2a1.7 1.7 0 0 0-2.9-1.2l-.1.1a1.7 1.7 0 1 1-2.4-2.4l.1-.1a1.7 1.7 0 0 0-1.2-2.9H4a1.7 1.7 0 1 1 0-3.4h.2a1.7 1.7 0 0 0 1.2-2.9l-.1-.1a1.7 1.7 0 1 1 2.4-2.4l.1.1a1.7 1.7 0 0 0 2.9-1.2V4a1.7 1.7 0 1 1 3.4 0v.2a1.7 1.7 0 0 0 2.9 1.2l.1-.1a1.7 1.7 0 1 1 2.4 2.4l-.1.1a1.7 1.7 0 0 0 1.2 2.9h.2a1.7 1.7 0 1 1 0 3.4h-.2a1.7 1.7 0 0 0-1.2.9Z"/></svg>
+          <span data-i18n="demoControls">Demo Controls</span>
+        </button>
+        <div class="quick-demo-panel" id="quickDemoPanel" hidden>
+          <div class="quick-demo-heading" data-i18n="presentationControls">Presentation controls</div>
+          <label for="quickDemoBus" data-i18n="busToDelay">Bus to delay</label>
+          <select id="quickDemoBus"></select>
+          <button class="btn btn-warning" id="quickTriggerDelay" type="button" data-i18n="triggerDelay15">Trigger Delay (+15 min)</button>
+          <button class="btn btn-outline" id="quickClearDelays" type="button" data-i18n="clearAllDelays">Clear All Delays</button>
+          <button class="btn btn-danger" id="quickResetDemo" type="button" data-i18n="resetDemo">Reset Demo</button>
+          <div class="quick-demo-connection"><span class="connection-dot connecting" id="quickConnectionDot"></span><span id="quickConnectionText" data-i18n="connectingLive">Connecting…</span></div>
+        </div>
+      </div>
+      <div class="demo-toast" id="demoToast" role="status" aria-live="polite"></div>
+
+      <div class="mobile-map-overlays" aria-label="Map filters and service summary" data-i18n-aria-label="mapFiltersSummary">
+        <div class="mobile-stat-strip" aria-label="Service summary" data-i18n-aria-label="serviceSummary">
+          <div class="mobile-stat-chip"><span class="mobile-stat-value" id="mobileStatActiveBuses">4</span><span data-i18n="buses">buses</span></div>
+          <div class="mobile-stat-chip"><span class="mobile-stat-value" id="mobileStatRoutes">3</span><span data-i18n="routes">routes</span></div>
           <div class="mobile-stat-chip mobile-alert-chip" id="mobileStatAlertsChip">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m10.3 3.9-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3.1l-8-14a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4m0 4h.01"/></svg>
-            <span class="mobile-stat-value" id="mobileStatAlerts">1</span><span>delays</span>
+            <span class="mobile-stat-value" id="mobileStatAlerts">1</span><span data-i18n="delays">delays</span>
           </div>
         </div>
-        <div class="mobile-filter-bar" aria-label="Filter buses by route">
-          <button class="chip active" data-filter="all">All</button>
-          <button class="chip" data-filter="CAMP-10" style="--chip-color: #2563EB;">Express</button>
-          <button class="chip" data-filter="SCI-20" style="--chip-color: #059669;">Tech</button>
-          <button class="chip" data-filter="HOST-30" style="--chip-color: #7C3AED;">Residences</button>
+        <div class="mobile-filter-bar" aria-label="Filter buses by route" data-i18n-aria-label="routeFilter">
+          <button class="chip active" data-filter="all" data-i18n="all">All</button>
+          <button class="chip" data-filter="CAMP-10" style="--chip-color: #2563EB;" data-i18n="express">Express</button>
+          <button class="chip" data-filter="SCI-20" style="--chip-color: #059669;" data-i18n="tech">Tech</button>
+          <button class="chip" data-filter="HOST-30" style="--chip-color: #7C3AED;" data-i18n="residences">Residences</button>
         </div>
       </div>
 
       <!-- Floating Map Overlays -->
       <div class="map-floating-controls">
-        <button class="map-ctrl-btn" id="btnRecenter" title="Center map on DHSGSU campus">
+        <button class="map-ctrl-btn" id="btnRecenter" title="Center map on DHSGSU campus" data-i18n-title="mapCampusTitle" aria-label="Center map on DHSGSU campus" data-i18n-aria-label="mapCampusTitle">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="10" />
             <circle cx="12" cy="12" r="3" />
@@ -260,7 +282,7 @@
             <line x1="19" y1="12" x2="22" y2="12" />
           </svg>
         </button>
-        <button class="map-ctrl-btn" id="btnToggleStops" title="Toggle Bus Stops visibility">
+        <button class="map-ctrl-btn" id="btnToggleStops" title="Toggle Bus Stops visibility" data-i18n-title="toggleStops" aria-label="Toggle Bus Stops visibility" data-i18n-aria-label="toggleStops">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M12 21s-8-7.5-8-12a8 8 0 1 1 16 0c0 4.5-8 12-8 12z" />
             <circle cx="12" cy="9" r="3" />
@@ -270,92 +292,92 @@
 
       <!-- Bottom Mini Telemetry Bar -->
       <div class="map-bottom-bar">
-        <span>📍 Dr. Harisingh Gour Vishwavidyalaya Campus Transit System</span>
+        <span aria-hidden="true">📍</span> <span data-i18n="campusTransitSystem">Dr. Harisingh Gour Vishwavidyalaya Campus Transit System</span>
         <span class="divider">•</span>
         <span id="bottomLastUpdated">Updated just now</span>
         <span class="divider">•</span>
-        <span>Polling Interval: 3000ms</span>
+        <span data-i18n="pollingInterval">Polling Interval: 3000ms</span>
       </div>
     </section>
   </main>
 
-  <nav class="mobile-bottom-nav" aria-label="Main navigation">
+  <nav class="mobile-bottom-nav" aria-label="Main navigation" data-i18n-aria-label="mainNavigation">
     <button class="bottom-nav-btn active" type="button" data-tab="fleet" aria-current="page">
-      <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="15" rx="3"/><path d="M3 10h18m-14 5h.01M17 15h.01M7 19v2m10-2v2"/></svg><span>Fleet</span>
+      <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="15" rx="3"/><path d="M3 10h18m-14 5h.01M17 15h.01M7 19v2m10-2v2"/></svg><span data-i18n="fleet">Fleet</span>
     </button>
     <button class="bottom-nav-btn" type="button" data-tab="schedules">
-      <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18m-13 4h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/></svg><span>Schedules</span>
+      <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18m-13 4h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/></svg><span data-i18n="schedules">Schedules</span>
     </button>
     <button class="bottom-nav-btn" type="button" data-tab="presentation">
-      <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 4h16v12H4zM8 20h8m-4-4v4"/><path d="m10 8 5 2-5 2z"/></svg><span>Demo Guide</span>
+      <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 4h16v12H4zM8 20h8m-4-4v4"/><path d="m10 8 5 2-5 2z"/></svg><span data-i18n="demoGuide">Demo Guide</span>
     </button>
   </nav>
 
-  <button class="demo-fab" id="btnOpenDemoFab" type="button" aria-label="Open demo controls" aria-controls="demoModal">
+  <button class="demo-fab" id="btnOpenDemoFab" type="button" aria-label="Open demo controls" data-i18n-aria-label="openDemoControls" aria-controls="demoModal">
     <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M13 2 3 14h8l-1 8 11-13h-8z"/></svg>
-    <span>Demo</span>
+    <span data-i18n="demo">Demo</span>
   </button>
 
   <!-- Interactive Demo Controls Modal -->
-  <div class="modal-backdrop" id="demoModal" role="dialog" aria-modal="true" aria-label="Demo controls">
+  <div class="modal-backdrop" id="demoModal" role="dialog" aria-modal="true" aria-label="Demo controls" data-i18n-aria-label="demoDialog">
     <div class="modal-card">
       <div class="modal-header">
         <div class="modal-title-group">
           <div class="modal-icon">⚡</div>
           <div>
-            <h3>DHSGSU Sagar Demo Controller</h3>
-            <p>Control live simulation, trigger delay alerts, and test REST endpoints</p>
+            <h3 data-i18n="demoController">DHSGSU Sagar Demo Controller</h3>
+            <p data-i18n="demoModalDescription">Control live simulation, trigger delay alerts, and test REST endpoints</p>
           </div>
         </div>
-        <button class="modal-close" id="btnCloseDemoModal">&times;</button>
+        <button class="modal-close" id="btnCloseDemoModal" aria-label="Close" data-i18n-aria-label="close">&times;</button>
       </div>
 
       <div class="modal-body">
         <details class="demo-section" open>
-          <summary><h4>1. Delay &amp; Notification Simulation</h4></summary>
-          <p class="section-desc">Instantly toggle delays to showcase the dynamic notification banner and schedule synchronization:</p>
+          <summary><h4 data-i18n="delayNotificationSection">1. Delay &amp; Notification Simulation</h4></summary>
+          <p class="section-desc" data-i18n="delaySectionDesc">Instantly toggle delays to showcase the dynamic notification banner and schedule synchronization:</p>
           <div class="demo-grid">
             <button class="btn btn-warning" onclick="App.triggerDelay(1, 15, 'Traffic congestion near University Main Gate on Patharia Hills')">
-              ⚠️ Delay Bus 101 (+15 min)
+              ⚠️ <span data-i18n="delayBus101">Delay Bus 101 (+15 min)</span>
             </button>
             <button class="btn btn-danger" onclick="App.triggerDelay(3, 20, 'Maintenance check near Science & USIC Lab')">
-              🚨 Delay Bus 201 (+20 min)
+              🚨 <span data-i18n="delayBus201">Delay Bus 201 (+20 min)</span>
             </button>
             <button class="btn btn-success" onclick="App.triggerDelay(1, 0, ''); App.triggerDelay(3, 0, '');">
-              ✅ Clear All Delays
+              ✅ <span data-i18n="clearAllDelays">Clear All Delays</span>
             </button>
           </div>
         </details>
 
         <details class="demo-section" open>
-          <summary><h4>2. Manual GPS Telemetry Push</h4></summary>
-          <p class="section-desc">Demonstrates the <code>POST /api/buses/:id/location</code> backend endpoint:</p>
+          <summary><h4 data-i18n="manualGpsSection">2. Manual GPS Telemetry Push</h4></summary>
+          <p class="section-desc"><span data-i18n="manualGpsDesc">Demonstrates the</span> <code>POST /api/buses/:id/location</code> <span data-i18n="backendEndpoint">backend endpoint:</span></p>
           <div class="demo-grid">
             <button class="btn btn-outline" onclick="App.stepSimulation()">
-              Forward GPS Step (All Buses)
+              <span data-i18n="forwardGps">Forward GPS Step (All Buses)</span>
             </button>
             <button class="btn btn-outline" onclick="App.postManualCoordinates()">
-              Push Custom GPS Coordinates
+              <span data-i18n="customGps">Push Custom GPS Coordinates</span>
             </button>
           </div>
         </details>
 
         <details class="demo-section" open>
-          <summary><h4>3. Simulation Engine &amp; State</h4></summary>
+          <summary><h4 data-i18n="simState">3. Simulation Engine &amp; State</h4></summary>
           <div class="demo-grid">
             <button class="btn btn-outline" id="modalToggleSimBtn" onclick="App.toggleSimulation()">
-              Pause / Resume Engine
+              <span data-i18n="pauseResumeEngine">Pause / Resume Engine</span>
             </button>
             <button class="btn btn-secondary" onclick="App.resetDemoState()">
-              🔄 Reset Everything to Default
+              🔄 <span data-i18n="resetDefault">Reset Everything to Default</span>
             </button>
           </div>
         </details>
       </div>
 
       <div class="modal-footer">
-        <span class="text-muted">Tip: Keep the notification banner visible during your demo to show real-time synchronization.</span>
-        <button class="btn btn-primary" id="btnDoneDemoModal">Close Controls</button>
+        <span class="text-muted" data-i18n="keepBannerTip">Tip: Keep the notification banner visible during your demo to show real-time synchronization.</span>
+        <button class="btn btn-primary" id="btnDoneDemoModal" data-i18n="closeControls">Close Controls</button>
       </div>
     </div>
   </div>
