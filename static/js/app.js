@@ -78,8 +78,9 @@ const App = (() => {
       zoomControl: false,
     });
 
-    // Add Zoom Control in top-right
-    L.control.zoom({ position: 'topright' }).addTo(state.map);
+    // Mobile zoom controls sit above the future collapsed bottom sheet.
+    const isMobileViewport = window.matchMedia('(max-width: 768px)').matches;
+    L.control.zoom({ position: isMobileViewport ? 'bottomright' : 'topright' }).addTo(state.map);
 
     const invalidateMobileMapSize = () => {
       if (window.innerWidth > 768) return;
@@ -93,6 +94,10 @@ const App = (() => {
       const mapResizeObserver = new ResizeObserver(invalidateMobileMapSize);
       mapResizeObserver.observe(state.map.getContainer().parentElement);
     }
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(invalidateMobileMapSize);
+    });
+    window.setTimeout(invalidateMobileMapSize, 120);
 
     // Free OpenStreetMap tile server
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {

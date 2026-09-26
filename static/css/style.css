@@ -1204,22 +1204,39 @@ body {
 
 @media (max-width: 768px) {
   .main-layout {
-    flex-direction: column;
-    min-height: 0;
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    display: block;
+    width: 100vw;
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
   }
   .sidebar {
+    position: relative;
+    z-index: 1;
     width: 100%;
-    height: auto;
+    height: 45vh;
     min-height: 0;
-    flex: 0 0 45%;
+    flex: none;
+    overflow: hidden;
   }
   .map-section {
-    width: 100%;
+    position: absolute;
+    z-index: 0;
+    inset: 0;
+    width: 100vw;
     min-width: 0;
     min-height: 0;
-    height: auto;
-    flex: 1 1 0;
+    height: 100vh;
+    height: 100dvh;
     overflow: hidden;
+  }
+  /* Leaflet panes use 200-700 and controls use 1000. Keeping the map in its
+     own base stacking context lets app UI sit above all map layers. */
+  .leaflet-bottom.leaflet-right {
+    bottom: calc(100px + env(safe-area-inset-bottom, 0px));
   }
   .map-unavailable {
     display: flex;
