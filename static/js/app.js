@@ -45,7 +45,16 @@ const App = (() => {
    * Initialize Map and Event Listeners
    */
   async function init() {
-    initMap();
+    try {
+      if (typeof L === 'undefined') throw new Error('Leaflet did not load');
+      initMap();
+    } catch (err) {
+      console.error('Interactive map unavailable:', err);
+      const mapContainer = document.getElementById('map');
+      if (mapContainer) {
+        mapContainer.innerHTML = '<div class="map-unavailable">Interactive map could not load. Bus details remain available in the fleet list.</div>';
+      }
+    }
     bindEvents();
     
     // Initial data fetches
@@ -147,7 +156,7 @@ const App = (() => {
     const btnRecenter = document.getElementById('btnRecenter');
     if (btnRecenter) {
       btnRecenter.addEventListener('click', () => {
-        state.map.flyTo([23.8268, 78.7712], 15);
+        if (state.map) state.map.flyTo([23.8268, 78.7712], 15);
       });
     }
 
@@ -156,6 +165,7 @@ const App = (() => {
       btnToggleStops.addEventListener('click', () => {
         state.showStops = !state.showStops;
         state.stopMarkers.forEach(m => {
+          if (!state.map) return;
           if (state.showStops) m.addTo(state.map);
           else state.map.removeLayer(m);
         });
@@ -192,6 +202,7 @@ const App = (() => {
    * Render Route Lines on Map
    */
   function renderRouteLines() {
+    if (!state.map) return;
     state.routes.forEach(route => {
       if (route.waypoints && route.waypoints.length > 0) {
         // Outer glow polyline
@@ -226,6 +237,7 @@ const App = (() => {
    * Render Bus Stops
    */
   function renderStops() {
+    if (!state.map) return;
     // Clear old stops
     state.stopMarkers.forEach(m => state.map.removeLayer(m));
     state.stopMarkers = [];
@@ -290,6 +302,7 @@ const App = (() => {
    * Update or Create Leaflet Markers for Buses
    */
   function updateBusMarkers() {
+    if (!state.map) return;
     state.buses.forEach(bus => {
       const lat = bus.current_lat;
       const lng = bus.current_lng;
@@ -491,7 +504,7 @@ const App = (() => {
     });
 
     // Filter Bus Map Markers
-    state.buses.forEach(bus => {
+    if (state.map) state.buses.forEach(bus => {
       const marker = state.busMarkers[bus.id];
       if (marker) {
         if (filter === 'all' || bus.route_code === filter) {
@@ -503,7 +516,7 @@ const App = (() => {
     });
 
     // Filter Polylines
-    Object.keys(state.routePolylines).forEach(code => {
+    if (state.map) Object.keys(state.routePolylines).forEach(code => {
       const { line, glow } = state.routePolylines[code];
       if (filter === 'all' || code === filter) {
         if (!state.map.hasLayer(line)) line.addTo(state.map);
@@ -733,10 +746,11 @@ const App = (() => {
 
     eventSource.addEventListener('buses', event => {
       try {
+        const snapshot = JSON.parse(event.data);
+        renderBusSnapshot(snapshot);
         receivedBusSnapshot = true;
         if (state.sseConnectionTimer) clearTimeout(state.sseConnectionTimer);
         state.sseConnectionTimer = null;
-        renderBusSnapshot(JSON.parse(event.data));
       } catch (err) {
         console.error('Error parsing live bus update:', err);
       }
