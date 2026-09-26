@@ -92,7 +92,8 @@
   <main class="main-layout">
     <div class="map-search-bar" role="search" aria-label="Route and stop search" data-i18n-aria-label="mapSearchLabel">
       <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-4-4"></path></svg>
-      <input type="search" placeholder="Search routes or stops" aria-label="Search routes or stops" data-i18n-placeholder="searchRoutesStops" disabled>
+      <input id="routeStopSearch" type="search" placeholder="Search routes or stops" aria-label="Search routes or stops" data-i18n-placeholder="searchRoutesStops" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="routeStopSearchResults" autocomplete="off">
+      <div id="routeStopSearchResults" class="map-search-results" role="listbox" hidden></div>
     </div>
     <!-- Sidebar / Drawer -->
     <aside class="sidebar">

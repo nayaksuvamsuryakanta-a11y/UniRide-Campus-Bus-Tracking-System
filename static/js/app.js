@@ -28,9 +28,12 @@ const App = (() => {
     audience: ['student', 'staff', 'visitor'].includes(localStorage.getItem('unirideAudience')) ? localStorage.getItem('unirideAudience') : '',
     hasBusSnapshot: false,
     connectionMode: 'connecting',
+    searchResults: [],
+    highlightedSearchResult: -1,
   };
 
   const TRANSLATIONS = {
+    noMatches: { en: 'No matches', hi: 'कोई मेल नहीं' },
     brandSubtitle: { en: 'Real-Time GPS Bus Tracker & Schedule', hi: 'बसों की लाइव GPS जानकारी और समय सारणी' },
     liveFeed: { en: 'LIVE FEED (3s)', hi: 'लाइव अपडेट (3 सेकंड)' }, connectedLive: { en: 'Live connection', hi: 'लाइव कनेक्शन' }, pollingConnection: { en: 'Polling for updates', hi: 'अपडेट जाँचे जा रहे हैं' },
     pauseEngine: { en: 'Pause Engine', hi: 'सिमुलेशन रोकें' }, resumeEngine: { en: 'Resume Engine', hi: 'सिमुलेशन चलाएँ' }, simPaused: { en: 'SIM PAUSED', hi: 'सिमुलेशन रुका है' }, pauseSimulation: { en: 'Pause simulation', hi: 'सिमुलेशन रोकें' }, resumeSimulation: { en: 'Resume simulation', hi: 'सिमुलेशन चलाएँ' },
@@ -158,6 +161,7 @@ const App = (() => {
     }
     renderRouteLines();
     renderStops();
+    renderRouteStopSearchResults();
     updateBusMarkers();
     renderBusList();
     renderNotifications();
@@ -326,14 +330,11 @@ const App = (() => {
     // Filter Chips for Routes
     document.querySelectorAll('.chip').forEach(chip => {
       chip.addEventListener('click', () => {
-        state.selectedRouteFilter = chip.getAttribute('data-filter');
-        localStorage.setItem('unirideRouteFilter', state.selectedRouteFilter);
-        document.querySelectorAll('.chip').forEach(c => {
-          c.classList.toggle('active', c.getAttribute('data-filter') === state.selectedRouteFilter);
-        });
-        applyRouteFilter();
+        selectRouteFilter(chip.getAttribute('data-filter'));
       });
     });
+
+    bindRouteStopSearch();
 
     // Keep the existing desktop demo panel fully expanded; accordion behavior
     // is reserved for the mobile bottom sheet.
@@ -459,6 +460,154 @@ const App = (() => {
     document.querySelectorAll('.chip').forEach(chip => chip.classList.toggle('active', chip.dataset.filter === state.selectedRouteFilter));
   }
 
+  function selectRouteFilter(routeCode) {
+    state.selectedRouteFilter = routeCode || 'all';
+    localStorage.setItem('unirideRouteFilter', state.selectedRouteFilter);
+    applyRouteFilter();
+    syncRouteFilterButtons();
+
+    const scheduleSelect = document.getElementById('scheduleRouteSelect');
+    if (scheduleSelect) {
+      const route = state.routes.find(item => item.code === state.selectedRouteFilter);
+      const routeId = route ? String(route.id) : '';
+      if (scheduleSelect.value !== routeId) {
+        scheduleSelect.value = routeId;
+        fetchSchedules(routeId);
+      }
+    }
+  }
+
+  function bindRouteStopSearch() {
+    const input = document.getElementById('routeStopSearch');
+    const results = document.getElementById('routeStopSearchResults');
+    if (!input || !results) return;
+
+    input.addEventListener('input', () => {
+      if (!input.value.trim()) {
+        closeRouteStopSearch();
+        selectRouteFilter('all');
+        return;
+      }
+      state.highlightedSearchResult = -1;
+      renderRouteStopSearchResults();
+    });
+
+    input.addEventListener('keydown', event => {
+      if (event.key === 'Escape') {
+        closeRouteStopSearch();
+        return;
+      }
+      if (!results.hidden && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) {
+        event.preventDefault();
+        const count = state.searchResults.length;
+        if (count) {
+          const direction = event.key === 'ArrowDown' ? 1 : -1;
+          state.highlightedSearchResult = state.highlightedSearchResult < 0
+            ? (direction > 0 ? 0 : count - 1)
+            : (state.highlightedSearchResult + direction + count) % count;
+          renderRouteStopSearchResults();
+        }
+      } else if (!results.hidden && event.key === 'Enter') {
+        const result = state.searchResults[state.highlightedSearchResult];
+        if (result) {
+          event.preventDefault();
+          selectRouteStopSearchResult(result);
+        }
+      }
+    });
+
+    results.addEventListener('click', event => {
+      const option = event.target.closest('[data-search-result-index]');
+      if (!option || option.disabled) return;
+      const result = state.searchResults[Number(option.dataset.searchResultIndex)];
+      if (result) selectRouteStopSearchResult(result);
+    });
+
+    document.addEventListener('click', event => {
+      if (!event.target.closest('.map-search-bar')) closeRouteStopSearch();
+    });
+  }
+
+  function closeRouteStopSearch() {
+    const input = document.getElementById('routeStopSearch');
+    const results = document.getElementById('routeStopSearchResults');
+    if (results) results.hidden = true;
+    if (input) input.setAttribute('aria-expanded', 'false');
+  }
+
+  function renderRouteStopSearchResults() {
+    const input = document.getElementById('routeStopSearch');
+    const container = document.getElementById('routeStopSearchResults');
+    if (!input || !container) return;
+    const query = input.value.trim().toLocaleLowerCase();
+    if (!query) {
+      state.searchResults = [];
+      closeRouteStopSearch();
+      return;
+    }
+
+    const matches = [];
+    state.routes.forEach(route => {
+      const routeName = localizedName(route.name);
+      if ([route.name, routeName, route.code]
+        .some(value => String(value || '').toLocaleLowerCase().includes(query))) {
+        matches.push({ type: 'route', route, name: routeName });
+      }
+      (route.stops || []).forEach(stop => {
+        const stopName = localizedName(stop.name);
+        if ([stop.name, stopName]
+          .some(value => String(value || '').toLocaleLowerCase().includes(query))) {
+          matches.push({ type: 'stop', route, stop, name: stopName });
+        }
+      });
+    });
+
+    state.searchResults = matches.slice(0, 8);
+    container.replaceChildren();
+    if (!state.searchResults.length) {
+      const noMatches = document.createElement('div');
+      noMatches.className = 'map-search-no-matches';
+      noMatches.setAttribute('aria-disabled', 'true');
+      noMatches.textContent = t('noMatches');
+      container.appendChild(noMatches);
+    } else {
+      state.searchResults.forEach((result, index) => {
+        const option = document.createElement('button');
+        option.type = 'button';
+        option.className = 'map-search-result';
+        option.setAttribute('role', 'option');
+        option.setAttribute('aria-selected', String(index === state.highlightedSearchResult));
+        option.dataset.searchResultIndex = String(index);
+
+        const name = document.createElement('span');
+        name.className = 'map-search-result-name';
+        name.textContent = result.name;
+        const detail = document.createElement('span');
+        detail.className = 'map-search-result-detail';
+        detail.textContent = result.type === 'route'
+          ? `${t('route')} · ${result.route.code}`
+          : `${t('stop')} · ${localizedName(result.route.name)}`;
+        option.append(name, detail);
+        container.appendChild(option);
+      });
+    }
+    container.hidden = false;
+    input.setAttribute('aria-expanded', 'true');
+  }
+
+  function selectRouteStopSearchResult(result) {
+    if (result.type === 'stop') {
+      if (state.map) state.map.flyTo([result.stop.lat, result.stop.lng], 16, { duration: 0.8 });
+    } else if (state.map) {
+      const routeLine = state.routePolylines[result.route.code]?.line;
+      if (routeLine) state.map.fitBounds(routeLine.getBounds(), { padding: [32, 32], maxZoom: 16 });
+    }
+    selectRouteFilter(result.route.code);
+    const input = document.getElementById('routeStopSearch');
+    if (input) input.value = result.name;
+    closeRouteStopSearch();
+  }
+
   function updateAudienceLabel() {
     const label = document.getElementById('audienceLabel');
     if (!label) return;
@@ -573,6 +722,7 @@ const App = (() => {
       // Draw route polylines and stops
       renderRouteLines();
       renderStops();
+      renderRouteStopSearchResults();
     } catch (err) {
       console.error('Error fetching routes:', err);
     }
