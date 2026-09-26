@@ -1,6 +1,5 @@
 import time
 import json
-import random
 import threading
 import logging
 import math
@@ -88,11 +87,11 @@ def step_simulation_once() -> None:
             fut_lat, fut_lng = waypoints[future_idx]
             heading = calculate_bearing(new_lat, new_lng, fut_lat, fut_lng)
 
-            # Speed variation (if delayed in traffic, lower speed)
-            if bus['delay_minutes'] > 0:
-                speed = round(random.uniform(7.0, 14.0), 1)
-            else:
-                speed = round(random.uniform(16.0, 24.0), 1)
+            # Report speed from the actual distance traveled during this tick.
+            distance_miles = _distance_miles(
+                bus['current_lat'], bus['current_lng'], new_lat, new_lng
+            )
+            speed = round(distance_miles / _sim_interval_seconds * 3600, 1)
 
             # Determine closest upcoming stop
             stops = stops_by_route.get(route_id, [])

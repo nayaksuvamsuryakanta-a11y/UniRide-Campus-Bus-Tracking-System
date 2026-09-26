@@ -42,6 +42,8 @@ class CampusBusTestCase(unittest.TestCase):
     def test_get_buses_empty_list(self):
         """An empty fleet returns a successful JSON response with count zero."""
         conn = get_db()
+        conn.execute('DELETE FROM notifications')
+        conn.execute('DELETE FROM schedules')
         conn.execute('DELETE FROM buses')
         conn.commit()
         conn.close()
@@ -55,7 +57,7 @@ class CampusBusTestCase(unittest.TestCase):
     def test_get_buses_with_inactive_or_missing_route(self):
         """A bus remains serializable when its route is inactive or missing."""
         conn = get_db()
-        conn.execute('UPDATE buses SET route_id = -1 WHERE id = 1')
+        conn.execute('UPDATE routes SET is_active = 0 WHERE id = (SELECT route_id FROM buses WHERE id = 1)')
         conn.commit()
         conn.close()
 
@@ -201,16 +203,74 @@ class CampusBusTestCase(unittest.TestCase):
             'severity': 'warning',
             'route_id': 2
         }
-        res_post = self.client.post('/api/notifications',
-                                    data=json.dumps(new_alert),
-                                    content_type='application/json')
+        with patch.dict(os.environ, {'ADMIN_TOKEN': 'test-admin-token'}):
+            res_post = self.client.post('/api/notifications',
+                                        data=json.dumps(new_alert),
+                                        content_type='application/json',
+                                        headers={'X-Admin-Token': 'test-admin-token'})
         self.assertEqual(res_post.status_code, 201)
         post_data = json.loads(res_post.data)
         alert_id = post_data['notification_id']
 
         # Dismiss notification
-        res_dismiss = self.client.post(f'/api/notifications/{alert_id}/dismiss')
+        with patch.dict(os.environ, {'ADMIN_TOKEN': 'test-admin-token'}):
+            res_dismiss = self.client.post(f'/api/notifications/{alert_id}/dismiss',
+                                           headers={'X-Admin-Token': 'test-admin-token'})
         self.assertEqual(res_dismiss.status_code, 200)
+
+    def test_notification_creation_requires_admin_token(self):
+        with patch.dict(os.environ, {'ADMIN_TOKEN': 'test-admin-token'}):
+            response = self.client.post('/api/notifications', json={
+                'title': 'Unauthorized', 'message': 'Should not be stored'
+            })
+            created = self.client.post('/api/notifications', json={
+                'title': 'Authorized', 'message': 'Used to check dismissal auth'
+            }, headers={'X-Admin-Token': 'test-admin-token'})
+            dismiss_response = self.client.post(
+                f"/api/notifications/{created.get_json()['notification_id']}/dismiss"
+            )
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(dismiss_response.status_code, 401)
+
+    def test_notification_html_is_stored_and_rendered_as_literal_text(self):
+        title = '<img src=x onerror=alert(1)>'
+        with patch.dict(os.environ, {'ADMIN_TOKEN': 'test-admin-token'}):
+            response = self.client.post('/api/notifications', json={
+                'title': title, 'message': 'Safe message'
+            }, headers={'X-Admin-Token': 'test-admin-token'})
+        self.assertEqual(response.status_code, 201)
+        conn = get_db()
+        stored_title = conn.execute(
+            'SELECT title FROM notifications WHERE id = ?',
+            (response.get_json()['notification_id'],)
+        ).fetchone()['title']
+        conn.close()
+        self.assertEqual(stored_title, '&lt;img src=x onerror=alert(1)&gt;')
+        with open('static/js/app.js', encoding='utf-8') as js_file:
+            js = js_file.read()
+        self.assertIn('escapeNotificationText(title)', js)
+        self.assertIn('escapeNotificationText(message)', js)
+
+    def test_notification_rejects_nonexistent_bus_id(self):
+        with patch.dict(os.environ, {'ADMIN_TOKEN': 'test-admin-token'}):
+            response = self.client.post('/api/notifications', json={
+                'title': 'Invalid bus', 'message': 'Must be rejected', 'bus_id': 999999
+            }, headers={'X-Admin-Token': 'test-admin-token'})
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('bus_id', response.get_json()['error'])
+
+    def test_simulated_speed_matches_distance_for_five_ticks(self):
+        bus_id = 1
+        for _ in range(5):
+            before = next(bus for bus in self.client.get('/api/buses').get_json()['buses'] if bus['id'] == bus_id)
+            simulation.step_simulation_once()
+            after = next(bus for bus in self.client.get('/api/buses').get_json()['buses'] if bus['id'] == bus_id)
+            distance_miles = simulation._distance_miles(
+                before['current_lat'], before['current_lng'],
+                after['current_lat'], after['current_lng']
+            )
+            expected_speed = round(distance_miles / simulation._sim_interval_seconds * 3600, 1)
+            self.assertEqual(after['speed_mph'], expected_speed)
 
     def test_demo_toggle_delay(self):
         """Test toggling delay on bus and verify status change."""

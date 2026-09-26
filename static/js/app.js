@@ -183,6 +183,20 @@ const App = (() => {
     return `${parts[0]} ${parts[parts.length - 1][0]}.`;
   }
 
+  // Notification strings are escaped before storage; decode those known
+  // entities and escape again for HTML so viewers see literal text safely.
+  function escapeNotificationText(value) {
+    const text = String(value ?? '')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#x27;/g, "'")
+      .replace(/&amp;/g, '&');
+    return text.replace(/[&<>"']/g, character => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#x27;'
+    })[character]);
+  }
+
   /**
    * Initialize Map and Event Listeners
    */
@@ -1070,10 +1084,10 @@ const App = (() => {
             <div class="notif-icon">${ICONS.alert}</div>
             <div class="notif-text-wrap">
               <div class="notif-title-row">
-                <span class="notif-title">${title}</span>
+                <span class="notif-title">${escapeNotificationText(title)}</span>
                 ${notif.route_name ? `<span class="brand-badge" style="background:#fef08a; color:#854d0e;">${localizedName(notif.route_name)}</span>` : ''}
               </div>
-              <span class="notif-msg">${message}</span>
+              <span class="notif-msg">${escapeNotificationText(message)}</span>
             </div>
           </div>
           <div class="notif-actions">

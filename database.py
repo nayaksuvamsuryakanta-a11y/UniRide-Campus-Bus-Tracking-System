@@ -17,6 +17,7 @@ DB_PATH = os.environ.get(
 def get_db() -> sqlite3.Connection:
     """Open a configured SQLite connection with row access and lock waiting."""
     conn = sqlite3.connect(DB_PATH, timeout=10)
+    conn.execute('PRAGMA foreign_keys = ON')
     conn.execute('PRAGMA busy_timeout = 10000')
     conn.row_factory = sqlite3.Row
     return conn

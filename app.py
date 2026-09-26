@@ -4,6 +4,7 @@ import math
 import logging
 import hmac
 import secrets
+import html
 from datetime import datetime
 from flask import Flask, Response, render_template, jsonify, request, stream_with_context
 from flask_limiter import Limiter
@@ -317,6 +318,11 @@ def get_schedules():
 def handle_notifications():
     """GET active delay & alert notifications, or POST a new notification."""
     if request.method == 'POST':
+        admin_token = os.environ.get('ADMIN_TOKEN')
+        if not admin_token:
+            return jsonify({'status': 'error', 'error': 'Admin actions are disabled because ADMIN_TOKEN is not configured'}), 503
+        if not hmac.compare_digest(request.headers.get('X-Admin-Token', ''), admin_token):
+            return jsonify({'status': 'error', 'error': 'A valid admin token is required'}), 401
         if not request.is_json:
             return jsonify({'status': 'error', 'error': 'Request body must be JSON'}), 400
         data = request.get_json(silent=False)
@@ -341,6 +347,16 @@ def handle_notifications():
         conn.close()
         return jsonify({'status': 'error', 'error': 'Title and message are required'}), 400
 
+    # Store any user supplied markup as escaped text so it cannot become HTML.
+    title = html.escape(str(title), quote=True)
+    message = html.escape(str(message), quote=True)
+    if bus_id is not None and not cursor.execute('SELECT 1 FROM buses WHERE id = ?', (bus_id,)).fetchone():
+        conn.close()
+        return jsonify({'status': 'error', 'error': 'bus_id does not refer to an existing bus'}), 400
+    if route_id is not None and not cursor.execute('SELECT 1 FROM routes WHERE id = ?', (route_id,)).fetchone():
+        conn.close()
+        return jsonify({'status': 'error', 'error': 'route_id does not refer to an existing route'}), 400
+
     now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     cursor.execute('''
     INSERT INTO notifications (bus_id, route_id, title, message, severity, is_active, created_at)
@@ -360,6 +376,11 @@ def handle_notifications():
 @app.route('/api/notifications/<int:alert_id>/dismiss', methods=['POST'])
 def dismiss_notification(alert_id):
     """Dismiss/resolve an alert notification."""
+    admin_token = os.environ.get('ADMIN_TOKEN')
+    if not admin_token:
+        return jsonify({'status': 'error', 'error': 'Admin actions are disabled because ADMIN_TOKEN is not configured'}), 503
+    if not hmac.compare_digest(request.headers.get('X-Admin-Token', ''), admin_token):
+        return jsonify({'status': 'error', 'error': 'A valid admin token is required'}), 401
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute('UPDATE notifications SET is_active = 0 WHERE id = ?', (alert_id,))
